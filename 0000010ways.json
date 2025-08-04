@@ -1,0 +1,95 @@
+{
+  "nodes": [
+    {
+      "name": "Webhook Lead",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead",
+        "responseCode": 200
+      },
+      "position": [250,300]
+    },
+    {
+      "name": "Generate Content Outline",
+      "type": "n8n-nodes-base.openai",
+      "typeVersion": 1,
+      "parameters": {
+        "model": "gpt-3.5",
+        "prompt": "Genera un outline atractivo para promocionar el producto affiliate elegido: {{ $json.interest }} usando beneficios y llamada a la acción."
+      },
+      "position": [450,300]
+    },
+    {
+      "name": "Generate Blog Post",
+      "type": "n8n-nodes-base.openai",
+      "typeVersion": 1,
+      "parameters": {
+        "model": "gpt-3.5",
+        "prompt": "Escribe un artículo profesional basado en el outline anterior, incl. enlace affiliate: {{ $json.affiliateLink }}"
+      },
+      "position": [650,300]
+    },
+    {
+      "name": "Create Social Graphic",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "parameters": {
+        "url": "https://api.canva.com/v1/designs",
+        "method": "POST",
+        "jsonParameters": true,
+        "bodyParametersJson": {
+          "template": "social-media",
+          "content": "{{ $json.postTitle }}"
+        }
+      },
+      "position": [850,300]
+    },
+    {
+      "name": "Upload to Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 1,
+      "parameters": {
+        "resource": "file",
+        "operation": "upload",
+        "binaryData": "={{$binary.graphic}}",
+        "parentId": "{{GOOGLE_DRIVE_FOLDER_ID}}"
+      },
+      "position": [1050,300]
+    },
+    {
+      "name": "Append to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "parameters": {
+        "operation": "append",
+        "sheetId": "{{GOOGLE_SHEETS_ID}}",
+        "range": "Sales!A:F",
+        "values": [
+          ["={{$json.email}}", "={{$json.interest}}", "={{$json.affiliateLink}}", "={{$json.postTitle}}", "={{$now}}", "sent"]
+        ]
+      },
+      "position": [1250,300]
+    },
+    {
+      "name": "Send Email with Content",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "parameters": {
+        "toEmail": "={{$json.email}}",
+        "subject": "Tu guía profesional sobre {{ $json.interest }}",
+        "text": "{{ $json.blogPost }}\n\n👉 Accede aquí: {{ $json.affiliateLink }}"
+      },
+      "position": [1450,300]
+    }
+  ],
+  "connections": {
+    "Webhook Lead": { "main": [[{"node":"Generate Content Outline","type":"main","index":0}]] },
+    "Generate Content Outline": { "main": [[{"node":"Generate Blog Post","type":"main","index":0}]] },
+    "Generate Blog Post": { "main": [[{"node":"Create Social Graphic","type":"main","index":0}]] },
+    "Create Social Graphic": { "main": [[{"node":"Upload to Google Drive","type":"main","index":0}]] },
+    "Upload to Google Drive": { "main": [[{"node":"Append to Google Sheets","type":"main","index":0}]] },
+    "Append to Google Sheets": { "main": [[{"node":"Send Email with Content","type":"main","index":0}]] }
+  }
+}
