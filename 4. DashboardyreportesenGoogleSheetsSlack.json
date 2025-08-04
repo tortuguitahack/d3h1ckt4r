@@ -1,0 +1,65 @@
+{
+  "name": "PulpoMonetizacion-Dashboards-Analitica",
+  "nodes": [
+    {
+      "name": "TriggerNuevaVenta",
+      "type": "n8n-nodes-base.webhook",
+      "parameters": {"path": "venta-nueva", "httpMethod": "POST", "responseMode": "lastNode"},
+      "typeVersion": 1,
+      "position": [100, 100]
+    },
+    {
+      "name": "GuardarDatosVentaSheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "parameters": {
+        "authentication": "serviceAccount",
+        "spreadsheetId": "TU_GOOGLE_SHEET_ID",
+        "sheetName": "Ventas",
+        "operation": "append",
+        "columns": ["fecha","producto","cliente","pais","plataforma","idioma","precio","canal","invoice_id"],
+        "values": ["={{$now}}","={{$json['producto']}}","={{$json['cliente']}}","={{$json['pais']}}","={{$json['plataforma']}}","={{$json['idioma']}}","={{$json['precio']}}","={{$json['canal']}}","={{$json['invoice_id']}}"]
+      },
+      "typeVersion": 1,
+      "position": [300, 100]
+    },
+    {
+      "name": "CalcularKPIs",
+      "type": "n8n-nodes-base.function",
+      "parameters": {
+        "functionCode": "const ventas = items.map(i => i.json);\nconst totalVentas = ventas.reduce((acc, v) => acc + Number(v.precio), 0);\nreturn [{ json: { totalVentas } }];"
+      },
+      "typeVersion": 1,
+      "position": [500, 100]
+    },
+    {
+      "name": "ActualizarDashboardSheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "parameters": {
+        "authentication": "serviceAccount",
+        "spreadsheetId": "TU_GOOGLE_SHEET_ID",
+        "sheetName": "DashboardKPIs",
+        "operation": "overwrite",
+        "range": "A1:B2",
+        "values": [["KPI","Valor"],["Total Ventas","={{$node['CalcularKPIs'].json['totalVentas']}}"]]
+      },
+      "typeVersion": 1,
+      "position": [700, 100]
+    },
+    {
+      "name": "EnviarReporteSlack",
+      "type": "n8n-nodes-base.slack",
+      "parameters": {
+        "credentialsSlackApi": "TUS_CREDENCIALES_SLACK",
+        "channel": "monetizacion-reportes",
+        "text": "Reporte actualizado: Total Ventas = {{$node['CalcularKPIs'].json['totalVentas']}} USD"
+      },
+      "typeVersion": 1,
+      "position": [900, 100]
+    }
+  ],
+  "connections": {
+    "TriggerNuevaVenta": { "main": [["GuardarDatosVentaSheet"]] },
+    "GuardarDatosVentaSheet": { "main": [["CalcularKPIs"]] },
+    "CalcularKPIs": { "main": [["ActualizarDashboardSheet","EnviarReporteSlack"]] }
+  }
+}
