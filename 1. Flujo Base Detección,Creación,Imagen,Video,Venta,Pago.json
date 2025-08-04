@@ -1,0 +1,117 @@
+{
+  "name": "PulpoMonetizacion-Base",
+  "nodes": [
+    {
+      "parameters": {"path": "webhook-inicio", "httpMethod": "POST", "responseMode": "lastNode"},
+      "name": "InicioWebhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [100, 100]
+    },
+    {
+      "parameters": {"httpMethod": "GET", "url": "https://trends.google.com/trends/trendingsearches/daily/rss?geo=US"},
+      "name": "TendenciasGoogle",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [300, 100]
+    },
+    {
+      "parameters": {"httpMethod": "GET", "url": "https://api.scrapingbee.com/v1/?api_key=TU_APIKEY&url=https://www.amazon.com/s?k={{$json['tendencia']}}"},
+      "name": "BusquedaAmazon",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [500, 100]
+    },
+    {
+      "parameters": {
+        "model": "gpt-3.5-turbo",
+        "openaiApiKey": "={{$env.OPENAI_API_KEY}}",
+        "messages": [{"role": "system", "content": "Eres experto en crear productos digitales y físicos para monetización mundial. Crea título, descripción y copy multilingüe para: {{$json['tendencia']}}"}]
+      },
+      "name": "GenerarProductoIA",
+      "type": "n8n-nodes-base.openai",
+      "typeVersion": 1,
+      "position": [700, 100]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "https://api.stablediffusionapi.com/v3/text2img",
+        "bodyParametersUi": {
+          "parameter": [
+            {"name": "key", "value": "TU_APIKEY_IMG"},
+            {"name": "prompt", "value": "Portada/vista previa para producto: {{$json['titulo']}}"}
+          ]
+        }
+      },
+      "name": "GenerarImagenProducto",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [900, 100]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "https://api.klap.app/api/v1/generate-video",
+        "bodyParametersUi": {
+          "parameter": [
+            {"name": "api_key", "value": "TU_KLAP_APIKEY"},
+            {"name": "script", "value": "={{$json['copy_multilingue']}}"},
+            {"name": "images_url", "value": "={{$node['GenerarImagenProducto'].json['image_url']}}"}
+          ]
+        }
+      },
+      "name": "GenerarVideoProducto",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1100, 100]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "spreadsheetId": "TU_GOOGLE_SHEET_ID",
+        "sheetName": "Ventas",
+        "operation": "append",
+        "columns": ["fecha","producto","titulo","precio","idiomas"],
+        "values": [
+          "={{$now}}",
+          "={{$json['producto_id']}}",
+          "={{$json['titulo']}}",
+          "={{$json['precio']}}",
+          "={{$json['idiomas']}}"
+        ]
+      },
+      "name": "RegistrarVentaSheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [1300, 100]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "https://api.stripe.com/v1/payment_links",
+        "headerParametersUi": { "parameter": [ {"name": "Authorization", "value": "Bearer TU_STRIPE_API_KEY"} ] },
+        "bodyParametersUi": {
+          "parameter": [
+            {"name": "line_items[0][price_data][currency]", "value": "usd"},
+            {"name": "line_items[0][price_data][product_data][name]", "value": "={{$json['titulo']}}"},
+            {"name": "line_items[0][price_data][unit_amount]", "value": "={{$json['precio']*100}}"},
+            {"name": "line_items[0][quantity]", "value": "1"}
+          ]
+        }
+      },
+      "name": "GenerarLinkPagoStripe",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1500, 100]
+    }
+  ],
+  "connections": {
+    "InicioWebhook": { "main": [["TendenciasGoogle", "BusquedaAmazon"]] },
+    "TendenciasGoogle": { "main": [["GenerarProductoIA"]] },
+    "BusquedaAmazon": { "main": [["GenerarProductoIA"]] },
+    "GenerarProductoIA": { "main": [["GenerarImagenProducto"]] },
+    "GenerarImagenProducto": { "main": [["GenerarVideoProducto"]] },
+    "GenerarVideoProducto": { "main": [["RegistrarVentaSheets", "GenerarLinkPagoStripe"]] }
+  }
+}
