@@ -1,0 +1,138 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "sheetId": "TU_GOOGLE_SHEET_ID",
+        "range": "Afiliados!A1:Z1000"
+      },
+      "name": "Leer Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [240, 100]
+    },
+    {
+      "parameters": {
+        "functionCode": "return items.filter(item => item.json.estado === 'pendiente');"
+      },
+      "name": "Filtrar Pendientes",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [440, 100]
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "{\"inputs\": \"Genera un texto promocional breve y adaptado en el idioma de {{$json[\\\"pais\\\"]}} para el producto {{$json[\\\"producto\\\"]}}, enfocado en {{$json[\\\"vertical\\\"]}} y para la red social {{$json[\\\"red_social\\\"]}}.\"}",
+        "url": "https://api-inference.huggingface.co/models/gpt-2"
+      },
+      "name": "Generar Texto IA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [650, 100]
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "{\"prompt\": \"Imagen creativa para producto {{$json[\\\"producto\\\"]}}, beneficios {{$json[\\\"beneficio\\\"]}} para usuarios en {{$json[\\\"pais\\\"]}} con estilo visual relevante.\", \"steps\": 20, \"width\": 512, \"height\": 512}",
+        "url": "https://api.stablediffusionapi.com/v1/text2img"
+      },
+      "name": "Generar Imagen IA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [890, 100]
+    },
+    {
+      "parameters": {
+        "functionCode": "const texto = $node[\"Generar Texto IA\"].json[0]?.generated_text || '';\nconst img = $node[\"Generar Imagen IA\"].json?.images[0] || '';\nconst vozUrl = `https://texttospeech.googleapis.com/v1/text:synthesize?key=TU_API_KEY&text=${encodeURIComponent(texto)}`;\nreturn [{json: {texto_promocional: texto, url_imagen: img, url_audio: vozUrl}}];"
+      },
+      "name": "Compilar Video",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1080, 100]
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "headers": [{ "name": "Authorization", "value": "Bearer TU_BITLY_API_TOKEN" }],
+        "jsonParameters": true,
+        "bodyParametersJson": "{\"long_url\": \"{{$json[\\\"enlace_afiliado\\\"]}}?utm_source={{$json[\\\"red_social\\\"]}}&utm_campaign=afiliados_{{$json[\\\"pais\\\"]}}_{{$json[\\\"producto\\\"]}}\"}",
+        "url": "https://api-ssl.bitly.com/v4/shorten"
+      },
+      "name": "Acortar enlace Bitly",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1260, 100]
+    },
+    {
+      "parameters": {
+        "text": "{{$node[\"Generar Texto IA\"].json[0]?.generated_text}} {{$node[\"Acortar enlace Bitly\"].json.link}}",
+        "mediaUrls": ["{{$node[\"Generar Imagen IA\"].json.images[0]}]"],
+        "operation": "create",
+        "channel": "instagram"
+      },
+      "name": "Publicar en Instagram",
+      "type": "n8n-nodes-base.instagram",
+      "typeVersion": 1,
+      "position": [1450, 100]
+    },
+    {
+      "parameters": {
+        "text": "{{$node[\"Generar Texto IA\"].json[0]?.generated_text}} {{$node[\"Acortar enlace Bitly\"].json.link}}",
+        "mediaUrl": "{{$node[\"Generar Imagen IA\"].json.images[0]}}",
+        "operation": "post",
+        "platform": "twitter"
+      },
+      "name": "Publicar en Twitter",
+      "type": "n8n-nodes-base.twitter",
+      "typeVersion": 1,
+      "position": [1450, 240]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/me/photos",
+        "jsonParameters": true,
+        "bodyParametersJson": "{\"caption\": \"{{$node[\"Generar Texto IA\"].json[0]?.generated_text}} {{$node[\"Acortar enlace Bitly\"].json.link}}\", \"url\": \"{{$node[\"Generar Imagen IA\"].json.images[0]}}\", \"access_token\": \"TU_TOKEN_FACEBOOK\"}"
+      },
+      "name": "Publicar en Facebook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1450, 370]
+    },
+    {
+      "parameters": {
+        "chatId": "TU_TELEGRAM_CHAT_ID",
+        "text": "Nueva publicación afiliada: {{$node[\"Generar Texto IA\"].json[0]?.generated_text}} {{$node[\"Acortar enlace Bitly\"].json.link}}"
+      },
+      "name": "Alerta Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [1650, 100]
+    },
+    {
+      "parameters": {
+        "sheetId": "TU_GOOGLE_SHEET_ID",
+        "range": "Afiliados!A2:Z",
+        "updateKey": "id",
+        "valueInputOption": "RAW",
+        "dataMode": "autoMapInputData"
+      },
+      "name": "Actualizar Google Sheet Estado",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [1650, 240]
+    }
+  ],
+  "connections": {
+    "Leer Google Sheet": { "main": [[{"node": "Filtrar Pendientes", "type":"main", "index":0}]] },
+    "Filtrar Pendientes": { "main": [[{"node": "Generar Texto IA", "type":"main", "index":0}]] },
+    "Generar Texto IA": { "main": [[{"node": "Generar Imagen IA", "type":"main", "index":0}]] },
+    "Generar Imagen IA": { "main": [[{"node": "Compilar Video", "type":"main", "index":0}]] },
+    "Compilar Video": { "main": [[{"node": "Acortar enlace Bitly", "type":"main", "index":0}]] },
+    "Acortar enlace Bitly": { "main": [[{"node": "Publicar en Instagram", "type":"main", "index":0}, {"node": "Publicar en Twitter", "type":"main", "index":0}, {"node": "Publicar en Facebook", "type":"main", "index":0}, {"node": "Alerta Telegram", "type":"main", "index":0}, {"node": "Actualizar Google Sheet Estado", "type":"main", "index":0}]] }
+  }
+}
