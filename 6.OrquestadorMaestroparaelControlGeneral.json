@@ -1,0 +1,75 @@
+{
+  "name": "PulpoMonetizacion-Principal-Orquestador",
+  "nodes": [
+    {
+      "name": "Inicio",
+      "type": "n8n-nodes-base.start",
+      "parameters": {},
+      "typeVersion": 1,
+      "position": [100, 80]
+    },
+    {
+      "name": "DispararBase",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "http://localhost:5678/webhook-inicio",
+        "jsonParameters": true,
+        "bodyParametersJson": "{\"idea\":\"{{ $json.idea }}\"}"
+      },
+      "typeVersion": 1,
+      "position": [300, 100]
+    },
+    {
+      "name": "DispararAtencion",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "http://localhost:5678/webhook-soporte-cliente",
+        "jsonParameters": true,
+        "bodyParametersJson": "{\"mensaje_cliente\":\"{{ $json.mensaje_cliente }}\",\"chat_id\":\"{{ $json.chat_id }}\"}"
+      },
+      "typeVersion": 1,
+      "position": [300, 200]
+    },
+    {
+      "name": "DispararEmbudos",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "http://localhost:5678/nuevo-venta",
+        "jsonParameters": true,
+        "bodyParametersJson": "{\"producto\":\"{{ $json.producto }}\",\"cliente\":\"{{ $json.cliente }}\",\"monto\":\"{{ $json.monto }}\",\"canal\":\"{{ $json.canal }}\",\"email\":\"{{ $json.email }}\",\"telefono\":\"{{ $json.telefono }}\"}"
+      },
+      "typeVersion": 1,
+      "position": [300, 300]
+    },
+    {
+      "name": "DispararDashboard",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "http://localhost:5678/venta-nueva",
+        "jsonParameters": true,
+        "bodyParametersJson": "{\"producto\":\"{{ $json.producto }}\",\"precio\":\"{{ $json.monto }}\",\"cliente\":\"{{ $json.cliente }}\",\"pais\":\"{{ $json.pais }}\",\"plataforma\":\"{{ $json.plataforma }}\",\"idioma\":\"{{ $json.idioma }}\",\"canal\":\"{{ $json.canal }}\",\"invoice_id\":\"{{ $json.invoice_id }}\"}"
+      },
+      "typeVersion": 1,
+      "position": [300, 400]
+    },
+    {
+      "name": "DispararMicroservicios",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "http://localhost:5678/nueva-oportunidad-producto",
+        "jsonParameters": true,
+        "bodyParametersJson": "{\"idea\":\"{{ $json.idea }}\",\"titulo\":\"{{ $json.titulo }}\",\"descripcion\":\"{{ $json.descripcion }}\",\"precio\":\"{{ $json.precio }}\",\"image_url\":\"{{ $json.image_url }}\"}"
+      },
+      "typeVersion": 1,
+      "position": [300, 500]
+    }
+  ],
+  "connections": {
+    "Inicio": { "main": [["DispararBase","DispararAtencion","DispararEmbudos","DispararDashboard","DispararMicroservicios"]]}
+  }
+}
