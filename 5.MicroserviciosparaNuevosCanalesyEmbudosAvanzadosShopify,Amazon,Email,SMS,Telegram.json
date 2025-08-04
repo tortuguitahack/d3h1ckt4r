@@ -1,0 +1,139 @@
+{
+  "name": "PulpoMonetizacion-Microservicios-NuevosCanales-Embudos",
+  "nodes": [
+    {
+      "name": "TriggerNuevoProducto",
+      "type": "n8n-nodes-base.webhook",
+      "parameters": {
+        "path": "nueva-oportunidad-producto",
+        "httpMethod": "POST",
+        "responseMode": "lastNode"
+      },
+      "typeVersion": 1,
+      "position": [100, 110]
+    },
+    {
+      "name": "CrearProductoDigitalIA",
+      "type": "n8n-nodes-base.openai",
+      "parameters": {
+        "openaiApiKey": "={{$env.OPENAI_API_KEY}}",
+        "model": "gpt-3.5-turbo",
+        "messages": [
+          {
+            "role": "system",
+            "content": "Genera un producto digital, guías, ebooks, videos y bundles multilingüe para la oportunidad {{$json['idea']}}."
+          }
+        ]
+      },
+      "typeVersion": 1,
+      "position": [300, 110]
+    },
+    {
+      "name": "SubirProductoWeb",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "https://api.myshopify.com/v1/products",
+        "headerParametersUi": {
+          "parameter": [{"name":"X-Shopify-Access-Token","value":"TU_SHOPIFY_ACCESS_TOKEN"}]
+        },
+        "bodyParametersUi": {
+          "parameter": [
+            {"name":"title","value":"={{$json['titulo']}}"},
+            {"name":"body_html","value":"={{$json['descripcion']}}"},
+            {"name":"images[0][src]","value":"={{$json['image_url']}}"},
+            {"name":"variants[0][price]","value":"={{$json['precio']}}"}
+          ]
+        }
+      },
+      "typeVersion": 1,
+      "position": [500, 150]
+    },
+    {
+      "name": "SubirProductoAmazon",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "https://sellingpartnerapi-na.amazon.com/listings/2021-08-01/items",
+        "headerParametersUi": {
+          "parameter": [
+            {"name":"x-amz-access-token","value":"TU_AMAZON_ACCESS_TOKEN"},
+            {"name":"Authorization","value":"Bearer TU_AMAZON_BEARER_TOKEN"}
+          ]
+        },
+        "bodyParametersUi": {
+          "parameter": [
+            {"name":"productType","value":"product"},
+            {"name":"productTitle","value":"={{$json['titulo']}}"},
+            {"name":"productDescription","value":"={{$json['descripcion']}}"},
+            {"name":"productImageUrl","value":"={{$json['image_url']}}"},
+            {"name":"productPrice","value":"={{$json['precio']}}"}
+          ]
+        }
+      },
+      "typeVersion": 1,
+      "position": [700, 150]
+    },
+    {
+      "name": "GenerarCampanaEmail",
+      "type": "n8n-nodes-base.openai",
+      "parameters": {
+        "openaiApiKey": "={{$env.OPENAI_API_KEY}}",
+        "model": "gpt-3.5-turbo",
+        "messages": [
+          {
+            "role": "system",
+            "content": "Crea una campaña email marketing persuasiva para el producto {{$json['titulo']}} para estos segmentos."
+          }
+        ]
+      },
+      "typeVersion": 1,
+      "position": [900, 110]
+    },
+    {
+      "name": "EnviarEmailsCampana",
+      "type": "n8n-nodes-base.emailSend",
+      "parameters": {
+        "fromEmail": "marketing@tuempresa.com",
+        "toEmail": "={{$json['email_cliente']}}",
+        "subject": "Oferta especial para {{$json['titulo']}}",
+        "text": "={{$node['GenerarCampanaEmail'].json['choices'][0]['message']['content']}}"
+      },
+      "typeVersion": 1,
+      "position": [1100, 110]
+    },
+    {
+      "name": "EnvioTelegramCampana",
+      "type": "n8n-nodes-base.telegram",
+      "parameters": {
+        "credentialsTelegramApi": "TUS_CREDENCIALES_TELEGRAM",
+        "chatId": "TU_TELEGRAM_CHAT_MARKETING",
+        "text": "Nueva campaña en curso para {{$json['titulo']}}: {{$node['GenerarCampanaEmail'].json['choices'][0]['message']['content']}}"
+      },
+      "typeVersion": 1,
+      "position": [1100, 200]
+    },
+    {
+      "name": "EnvioSMSCampana",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "https://api.smsgateway.com/send",
+        "bodyParametersUi": {
+          "parameter": [
+            {"name":"api_key","value":"TU_SMS_APIKEY"},
+            {"name":"phone","value":"={{$json['telefono_cliente']}}"},
+            {"name":"message","value":"Oferta para {{$json['titulo']}}! No te la pierdas!"}
+          ]
+        }
+      },
+      "typeVersion": 1,
+      "position": [1300, 110]
+    }
+  ],
+  "connections": {
+    "TriggerNuevoProducto": {"main": [["CrearProductoDigitalIA"]]},
+    "CrearProductoDigitalIA": {"main": [["SubirProductoWeb","SubirProductoAmazon","GenerarCampanaEmail"]]},
+    "GenerarCampanaEmail": {"main": [["EnviarEmailsCampana","EnvioTelegramCampana","EnvioSMSCampana"]]}
+  }
+}
