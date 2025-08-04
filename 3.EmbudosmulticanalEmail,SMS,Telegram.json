@@ -1,0 +1,69 @@
+{
+  "name": "PulpoMonetizacion-Embudos-Canales",
+  "nodes": [
+    {
+      "name": "TriggerVentaWebhook",
+      "type": "n8n-nodes-base.webhook",
+      "parameters": {"path":"nuevo-venta","httpMethod":"POST","responseMode":"lastNode"},
+      "typeVersion": 1,
+      "position": [100, 100]
+    },
+    {
+      "name": "GuardarVentaGoogleSheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "parameters": {
+        "authentication": "serviceAccount",
+        "spreadsheetId": "TU_GOOGLESHEET_ID",
+        "sheetName": "Ventas",
+        "operation": "append",
+        "columns": ["fecha","cliente","producto","monto","canal"],
+        "values": ["={{$now}}","={{$json['cliente']}}","={{$json['producto']}}","={{$json['monto']}}","={{$json['canal']}}"]
+      },
+      "typeVersion": 1,
+      "position": [300, 100]
+    },
+    {
+      "name": "EnviarEmailConfirmacion",
+      "type": "n8n-nodes-base.emailSend",
+      "parameters": {
+        "fromEmail": "ventas@tuempresa.com",
+        "toEmail": "={{$json['email']}}",
+        "subject": "Confirmación de compra {{$json['producto']}}",
+        "text": "Hola {{$json['cliente']}}, gracias por tu compra de {{$json['producto']}} por ${{$json['monto']}}."
+      },
+      "typeVersion": 1,
+      "position": [300, 250]
+    },
+    {
+      "name": "EnviarSMSNotificacion",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "https://api.sms-provider.com/send",
+        "bodyParametersUi": {
+          "parameter": [
+            {"name": "api_key", "value": "TU_SMS_APIKEY"},
+            {"name": "to", "value": "={{$json['telefono']}}"},
+            {"name": "message", "value": "Gracias {{$json['cliente']}}, tu compra de {{$json['producto']}} está confirmada."}
+          ]
+        }
+      },
+      "typeVersion": 1,
+      "position": [500, 100]
+    },
+    {
+      "name": "EnviarTelegramNotificacion",
+      "type": "n8n-nodes-base.telegram",
+      "parameters": {
+        "credentialsTelegramApi": "TUS_CREDENCIALES_TELEGRAM",
+        "chatId": "TU_TELEGRAM_CHAT_ID",
+        "text": "Nueva venta de {{$json['producto']}} por {{$json['monto']}} a cliente {{$json['cliente']}}."
+      },
+      "typeVersion": 1,
+      "position": [500, 250]
+    }
+  ],
+  "connections": {
+    "TriggerVentaWebhook": {"main": [["GuardarVentaGoogleSheets","EnviarEmailConfirmacion","EnviarSMSNotificacion","EnviarTelegramNotificacion"]]}
+  }
+}
