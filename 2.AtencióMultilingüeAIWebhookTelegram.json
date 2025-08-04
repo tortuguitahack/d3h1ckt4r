@@ -1,0 +1,46 @@
+{
+  "name": "PulpoMonetizacion-AtencionMultilingue",
+  "nodes": [
+    {
+      "parameters": {"path": "webhook-soporte-cliente","httpMethod": "POST","responseMode": "lastNode"},
+      "name": "SoporteWebhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [100, 100]
+    },
+    {
+      "parameters": {
+        "model": "gpt-3.5-turbo",
+        "openaiApiKey": "={{$env.OPENAI_API_KEY}}",
+        "messages": [
+          {"role": "system","content": "Eres un asistente virtual multilingüe. Atiendes consultas, reembolsos, pedidos y preguntas en el idioma del cliente de forma cordial, ofreciendo soluciones rápidas y personalizadas."},
+          {"role": "user","content": "{{$json['mensaje_cliente']}}"}
+        ]
+      },
+      "name": "AtencionAI",
+      "type": "n8n-nodes-base.openai",
+      "typeVersion": 1,
+      "position": [300, 100]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "bodyParametersUi": {
+          "parameter": [
+            {"name": "chat_id", "value": "={{$json['chat_id']}}"},
+            {"name": "text", "value": "Respuesta AI: {{$node['AtencionAI'].json['choices'][0]['message']['content']}}"}
+          ]
+        }
+      },
+      "name": "NotificarTelegram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [500, 100]
+    }
+  ],
+  "connections": {
+    "SoporteWebhook": { "main": [["AtencionAI"]] },
+    "AtencionAI": { "main": [["NotificarTelegram"]] }
+  }
+}
