@@ -1,0 +1,103 @@
+{
+  "name": "Generación Automática Videos Promocionales Licorería Elite",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "crear-guion-video",
+        "options": {},
+        "responseMode": "lastNode",
+        "responseData": "allEntries"
+      },
+      "name": "Webhook Solicitud Guion Video",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "crear-guion-video-webhook"
+    },
+    {
+      "parameters": {
+        "model": "gpt-4",
+        "messages": [
+          {
+            "role": "system",
+            "content": "Eres un experto creativo en marketing audiovisual especializado en licorerías de elite. Genera un guion atractivo y dinámico para un video promocional que muestre mujeres disfrutando cerveza en un lugar con el nombre de la licorería proporcionado."
+          },
+          {
+            "role": "user",
+            "content": "Crea un guion para video promocional para la licorería llamada \"Licorería Elite\"."
+          }
+        ],
+        "temperature": 0.8,
+        "max_tokens": 500
+      },
+      "name": "OpenAI - Generar Guion Video",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [550, 300],
+      "credentials": {
+        "openAIApi": "OpenAI Licoreria"
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "const guionTexto = items[0].json.choices[0].message.content;\n\nconst storyboard = [\n  { escena: 1, descripcion: \"Mujeres riendo y disfrutando cerveza en el bar de Licorería Elite\", imagen: \"placeholder_escena1.jpg\" },\n  { escena: 2, descripcion: \"Primer plano de cerveza bien servida con el logo de Licorería Elite\", imagen: \"placeholder_escena2.jpg\" },\n  { escena: 3, descripcion: \"Brindis entre amigas en terraza con vistas nocturnas\", imagen: \"placeholder_escena3.jpg\" }\n];\n\nconst presupuestoEstimado = 1500; // Ejemplo en moneda local\n\nreturn [{ json: { guionTexto, storyboard, presupuestoEstimado }}];"
+      },
+      "name": "Crear Storyboard y Presupuesto",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "channel": "#produccion-videos",
+        "text": "=Se ha generado un nuevo guion para video promocional de Licorería Elite:\n\nGuion:\n{{$json.guionTexto}}\n\nStoryboard:\n1. {{$json.storyboard[0].descripcion}}\n2. {{$json.storyboard[1].descripcion}}\n3. {{$json.storyboard[2].descripcion}}\n\nPresupuesto estimado: ${{$json.presupuestoEstimado}}\n\nPor favor coordinar producción."
+      },
+      "name": "Slack - Notificar Equipo Producción",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [1150, 300],
+      "credentials": {
+        "slackAuth": "Slack Licoreria Produccion"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Solicitud Guion Video": {
+      "main": [
+        [
+          {
+            "node": "OpenAI - Generar Guion Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI - Generar Guion Video": {
+      "main": [
+        [
+          {
+            "node": "Crear Storyboard y Presupuesto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear Storyboard y Presupuesto": {
+      "main": [
+        [
+          {
+            "node": "Slack - Notificar Equipo Producción",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "id": "5"
+}
