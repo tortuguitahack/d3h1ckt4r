@@ -1,0 +1,121 @@
+{
+  "name": "Gestión Inventarios Licorería Elite",
+  "nodes": [
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "type": "interval",
+              "hours": 2,
+              "minutes": 0
+            }
+          ]
+        }
+      },
+      "name": "Trigger Cada 2 Horas",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "sheetId": "<TU_GOOGLE_SHEET_ID>",
+        "range": "Inventario!A2:D",
+        "options": {},
+        "dataPropertyName": "data"
+      },
+      "name": "Google Sheets - Leer Inventario",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [500, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": "Google Sheets Cuenta Licoreria"
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "const stockBajo = items[0].json.data.filter(row => parseInt(row[2]) < parseInt(row[3]));\nreturn stockBajo.map(row => {\n  return {\n    json: {\n      producto: row[0],\n      proveedor: row[1],\n      stockActual: parseInt(row[2]),\n      stockMinimo: parseInt(row[3]),\n      cantidadPedido: parseInt(row[3]) * 2 - parseInt(row[2])\n    }\n  };\n});"
+      },
+      "name": "Detectar Stock Bajo",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [750, 300]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "phoneNumber": "={{$json[\"proveedor\"]}}",
+        "message": "Hola, necesitamos reponer el producto: {{$json[\"producto\"]}}. Stock actual: {{$json[\"stockActual\"]}}. Por favor enviar cantidad: {{$json[\"cantidadPedido\"]}}. Gracias.",
+        "options": {}
+      },
+      "name": "WhatsApp - Notificar Proveedor",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [1000, 300],
+      "credentials": {
+        "twilioApi": "Twilio Licoreria WhatsApp"
+      }
+    },
+    {
+      "parameters": {
+        "filter": "={{$json[\"stockActual\"] < $json[\"stockMinimo\"]}}"
+      },
+      "name": "Filtro Stock Bajo",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Trigger Cada 2 Horas": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Leer Inventario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - Leer Inventario": {
+      "main": [
+        [
+          {
+            "node": "Detectar Stock Bajo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detectar Stock Bajo": {
+      "main": [
+        [
+          {
+            "node": "Filtro Stock Bajo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtro Stock Bajo": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp - Notificar Proveedor",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "id": "2"
+}
