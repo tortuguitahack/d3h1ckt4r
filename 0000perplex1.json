@@ -1,0 +1,128 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "sheetId": "GOOGLE_SHEET_ID",
+        "range": "Afiliados!A1:Z1000"
+      },
+      "name": "Read from Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [280, 100]
+    },
+    {
+      "parameters": {
+        "functionCode": "return items.filter(item => item.json.status === 'pendiente');"
+      },
+      "name": "Filter Items (Pendientes)",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [520, 100]
+    },
+    {
+      "parameters": {
+        "endpoint": "https://api-inference.huggingface.co/models/gpt-2",
+        "requestMethod": "POST",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "{\"inputs\": \"Genera copy breve de 100 caracteres para promocionar el producto: {{$json[\"producto\"]}} en {{$json[\"pais\"]}}. Oferta válida solo por hoy.\"}"
+      },
+      "name": "Generate Copy (AI Texto)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [740, 100]
+    },
+    {
+      "parameters": {
+        "endpoint": "https://api.segmind.com/v1/generate",
+        "requestMethod": "POST",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "{\"prompt\": \"{{$json[\"producto\"]}} {{$json[\"beneficio\"]}} {{$json[\"pais\"]}} digital style promo, clean, high impact\"}"
+      },
+      "name": "Generate Image (Stable Diffusion)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [980, 100]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Concat text-to-speech demo with imagen: pseudo-code\nreturn [{json: {\n  'video_url': 'https://cloud.11labs.io/transform/audio?text='+encodeURIComponent($node[\"Generate Copy (AI Texto)\"].json.outputs),\n  'image_url': $node[\"Generate Image (Stable Diffusion)\"].json.image_url\n}}];"
+      },
+      "name": "Assemble Video",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1160, 100]
+    },
+    {
+      "parameters": {
+        "endpoint": "https://api-ssl.bitly.com/v4/shorten",
+        "requestMethod": "POST",
+        "headers": [{"name":"Authorization","value":"Bearer TU_BITLY_TOKEN"}],
+        "jsonParameters": true,
+        "bodyParametersJson": "{\"long_url\": \"{{$json[\"link_afiliado\"]}}?utm_source={{$json[\"red_social\"]}}&utm_campaign=afiliados_{{$json[\"pais\"]}}\"}"
+      },
+      "name": "Bitly Link",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1330, 100]
+    },
+    {
+      "parameters": {
+        "resource": "post",
+        "operation": "create",
+        "channel": "instagram",
+        "text": "{{$json[\"copy\"]}} {{$json[\"short_url\"]}}",
+        "media": "{{$json[\"image_url\"]}}"
+      },
+      "name": "Publish Instagram Buffer",
+      "type": "n8n-nodes-base.buffer",
+      "typeVersion": 1,
+      "position": [1500, 80]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Email via MailerLite API, very simple\nreturn [{json:{\n    \"subject\":\"Nueva oferta {{$json[\"producto\"]}} en {{$json[\"pais\"]}}\",\n    \"body\":\"Genial oferta: {{$json[\"short_url\"]}} {{$json[\"copy\"]}} \",\n    \"to\":\"{{$json[\"lead_email\"]}}\"\n}}];"
+      },
+      "name": "Send Email (MailerLite)",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1700, 80]
+    },
+    {
+      "parameters": {
+        "sheetId": "GOOGLE_SHEET_ID",
+        "range": "Afiliados!A1:Z1000",
+        "updateKey": "id",
+        "valueInputOption": "RAW",
+        "dataMode": "autoMapInputData"
+      },
+      "name": "Update Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [1900, 80]
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_GROUP_ID",
+        "text": "🚀 Publicado {{$json[\"producto\"]}} en {{$json[\"pais\"]}}: {{$json[\"short_url\"]}}"
+      },
+      "name": "Telegram Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [2100, 80]
+    }
+  ],
+  "connections":
+  {
+    "Read from Google Sheets": {"main":[ [{"node":"Filter Items (Pendientes)","type":"main","index":0}] ]},
+    "Filter Items (Pendientes)": {"main":[ [{"node":"Generate Copy (AI Texto)","type":"main","index":0}] ]},
+    "Generate Copy (AI Texto)": {"main":[ [{"node":"Generate Image (Stable Diffusion)","type":"main","index":0}] ]},
+    "Generate Image (Stable Diffusion)": {"main":[ [{"node":"Assemble Video","type":"main","index":0}] ]},
+    "Assemble Video": {"main":[ [{"node":"Bitly Link","type":"main","index":0}] ]},
+    "Bitly Link": {"main":[ [{"node":"Publish Instagram Buffer","type":"main","index":0}, {"node":"Send Email (MailerLite)","type":"main","index":0}] ]},
+    "Publish Instagram Buffer": {"main":[ [{"node":"Update Google Sheet","type":"main","index":0}] ]},
+    "Send Email (MailerLite)": {"main":[ [{"node":"Update Google Sheet","type":"main","index":0}] ]},
+    "Update Google Sheet": {"main":[ [{"node":"Telegram Alert","type":"main","index":0}] ]}
+  }
+}
