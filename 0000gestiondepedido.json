@@ -1,0 +1,9 @@
+{
+  "cliente": "Juan Perez",
+  "telefono": "+5215512345678",
+  "direccion": "Calle Falsa 123",
+  "items": [
+    {"producto": "Cerveza Lager", "cantidad": 3},
+    {"producto": "Whisky Añejo", "cantidad": 1}
+  ]
+}
