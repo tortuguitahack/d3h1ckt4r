@@ -1,0 +1,154 @@
+{
+  "nodes": [
+    // 1. TRIGGER: Inicio manual o programado
+    {
+      "parameters": {
+        "triggerTimes": {
+          "hourly": 1,
+          "minutes": 0
+        }
+      },
+      "name": "Programador",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1
+    },
+
+    // 2. BUSCAR CONTENIDO: APIs de stock con filtros
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "search",
+        "query": "cute baby OR funny animals",
+        "perPage": 10,
+        "filters": "duration:short"
+      },
+      "name": "Pexels/Shutterstock",
+      "type": "n8n-nodes-base.stockApi",
+      "typeVersion": 1
+    },
+
+    // 3. SELECCIÓN AUTOMÁTICA: Mejores clips con IA
+    {
+      "parameters": {
+        "functionCode": "const clips = $input.all();\nreturn clips\n  .filter(clip => clip.engagementRate > 0.8)\n  .sort((a,b) => b.resolution - a.resolution)\n  .slice(0, 3);"
+      },
+      "name": "Filtrar Top Clips",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1
+    },
+
+    // 4. EDITOR DE VIDEO: Automatizado con Shotstack
+    {
+      "parameters": {
+        "operation": "render",
+        "template": {
+          "timeline": {
+            "tracks": [
+              {
+                "clips": "={{ $json.clips.map(clip => ({\n  asset: { type: 'video', src: clip.url },\n  start: 0,\n  length: 5,\n  effect: 'zoomPan'\n})) }}"
+              },
+              {
+                "clips": [
+                  {
+                    "asset": {
+                      "type": "audio",
+                      "src": "https://música-feliz.mp3"
+                    },
+                    "start": 0,
+                    "length": 15
+                  }
+                ]
+              }
+            ]
+          },
+          "output": {
+            "format": "mp4",
+            "resolution": "1080"
+          }
+        }
+      },
+      "name": "Compositor Video",
+      "type": "n8n-nodes-base.shotstack",
+      "typeVersion": 1
+    },
+
+    // 5. GENERAR SUBTÍTULOS: IA humorísticos
+    {
+      "parameters": {
+        "model": "gpt-4-turbo",
+        "messages": [
+          {
+            "role": "system",
+            "content": "Crea 3 subtítulos graciosos (max 15 palabras) para videos virales de bebés/animales"
+          },
+          {
+            "role": "user",
+            "content": "Clips: {{ $json.clips }}"
+          }
+        ]
+      },
+      "name": "Generar Subtítulos",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1
+    },
+
+    // 6. INCORPORAR SUBTÍTULOS: API de renderizado
+    {
+      "parameters": {
+        "operation": "addCaptions",
+        "videoId": "={{ $node['Compositor Video'].json.renderId }}",
+        "captions": "={{ $json.choices[0].message.content.split('\\n') }}",
+        "style": {
+          "font": "Comic Sans",
+          "color": "#FFFFFF",
+          "size": 48
+        }
+      },
+      "name": "Añadir Subtítulos",
+      "type": "n8n-nodes-base.videoApi",
+      "typeVersion": 1
+    },
+
+    // 7. PUBLICACIÓN AUTOMÁTICA
+    {
+      "parameters": {
+        "operation": "upload",
+        "video": "={{ $json.processedVideo }}",
+        "title": "Compilación Graciosa {{ $now.format('DD-MM') }}",
+        "description": "¡Dosis diaria de ternura! 😍 #bebés #animales #viral",
+        "platforms": [
+          "youtube",
+          "tiktok",
+          "instagram"
+        ],
+        "scheduleTime": "={{ $now.plus(1, 'hour') }}"
+      },
+      "name": "Publicar en Redes",
+      "type": "n8n-nodes-base.socialMediaPublisher",
+      "typeVersion": 1
+    }
+  ],
+  "connections": {
+    "Programador": {
+      "main": [[{ "node": "Pexels/Shutterstock" }]]
+    },
+    "Pexels/Shutterstock": {
+      "main": [[{ "node": "Filtrar Top Clips" }]]
+    },
+    "Filtrar Top Clips": {
+      "main": [[{ "node": "Compositor Video" }]]
+    },
+    "Compositor Video": {
+      "main": [
+        [{ "node": "Generar Subtítulos" }],
+        [{ "node": "Añadir Subtítulos" }]
+      ]
+    },
+    "Generar Subtítulos": {
+      "main": [[{ "node": "Añadir Subtítulos" }]]
+    },
+    "Añadir Subtítulos": {
+      "main": [[{ "node": "Publicar en Redes" }]]
+    }
+  }
+}
