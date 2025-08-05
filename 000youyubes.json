@@ -1,0 +1,171 @@
+{
+  "nodes": [
+    // 1. INICIO (Programador)
+    {
+      "parameters": {
+        "interval": 3600,
+        "unit": "seconds"
+      },
+      "name": "Programador",
+      "type": "n8n-nodes-base.interval",
+      "typeVersion": 2
+    },
+
+    // 2. BUSCAR VIDEOS (Pexels API)
+    {
+      "parameters": {
+        "url": "=https://api.pexels.com/videos/search?query=cute+baby+OR+funny+animals&per_page=5&min_duration=2&max_duration=10",
+        "headers": {
+          "Authorization": "{{ $env.PEXELS_API_KEY }}"
+        }
+      },
+      "name": "Buscar_Videos_Pexels",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3
+    },
+
+    // 3. SELECCIONAR MEJORES CLIPS
+    {
+      "parameters": {
+        "functionCode": "return $input.all().map(item => {\n  const videos = item.json.videos;\n  return videos\n    .sort((a, b) => b.width * b.height - a.width * a.height)\n    .slice(0, 3)\n    .map(v => ({\n      url: v.video_files[0].link,\n      duration: v.duration\n    }));\n});"
+      },
+      "name": "Seleccionar_Mejores_Clips",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1
+    },
+
+    // 4. GENERAR SUBTÍTULOS (OpenAI)
+    {
+      "parameters": {
+        "model": "gpt-4-turbo",
+        "messages": [
+          {
+            "role": "system",
+            "content": "Genera 3 frases graciosas (menos de 10 palabras) sobre bebés o animales en español"
+          }
+        ]
+      },
+      "name": "Generar_Subtítulos",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1
+    },
+
+    // 5. EDITAR VIDEO (Shotstack API)
+    {
+      "parameters": {
+        "url": "https://api.shotstack.io/stage/render",
+        "options": {
+          "headers": {
+            "x-api-key": "{{ $env.SHOTSTACK_API_KEY }}",
+            "Content-Type": "application/json"
+          }
+        },
+        "body": {
+          "timeline": {
+            "tracks": [
+              {
+                "clips": "={{ $json.clips.map((clip, index) => ({ \n  asset: { type: 'video', src: clip.url },\n  start: index * 3,\n  length: 3,\n  effect: 'zoomPan'\n})) }}"
+              },
+              {
+                "clips": [
+                  {
+                    "asset": {
+                      "type": "text",
+                      "text": "={{ $node[\"Generar_Subtítulos\"].json.choices[0].message.content.split('\\n')[0] }}",
+                      "style": "minimal",
+                      "size": 48,
+                      "color": "#FFFFFF"
+                    },
+                    "start": 0,
+                    "length": 3
+                  },
+                  {
+                    "asset": {
+                      "type": "text",
+                      "text": "={{ $node[\"Generar_Subtítulos\"].json.choices[0].message.content.split('\\n')[1] }}",
+                      "style": "minimal",
+                      "size": 48,
+                      "color": "#FFFFFF"
+                    },
+                    "start": 3,
+                    "length": 3
+                  },
+                  {
+                    "asset": {
+                      "type": "text",
+                      "text": "={{ $node[\"Generar_Subtítulos\"].json.choices[0].message.content.split('\\n')[2] }}",
+                      "style": "minimal",
+                      "size": 48,
+                      "color": "#FFFFFF"
+                    },
+                    "start": 6,
+                    "length": 3
+                  }
+                ]
+              }
+            ]
+          },
+          "output": {
+            "format": "mp4",
+            "resolution": "sd"
+          }
+        },
+        "jsonParameters": true
+      },
+      "name": "Editar_Video_Shotstack",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3
+    },
+
+    // 6. DESCARGAR VIDEO
+    {
+      "parameters": {
+        "url": "={{ $json.response.attributes.url }}",
+        "options": {
+          "headers": {
+            "x-api-key": "{{ $env.SHOTSTACK_API_KEY }}"
+          }
+        },
+        "binaryProperty": "data"
+      },
+      "name": "Descargar_Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3
+    },
+
+    // 7. PUBLICAR EN YOUTUBE
+    {
+      "parameters": {
+        "operation": "upload",
+        "binaryDataName": "={{ $item.json.data }}",
+        "title": "Compilación Graciosa {{ $now.format('DD-MM-YYYY') }}",
+        "description": "¡Dosis diaria de ternura! 😍 #bebés #animales #viral",
+        "privacyStatus": "public",
+        "credentials": "youtubeOAuth2Api"
+      },
+      "name": "Publicar_YouTube",
+      "type": "n8n-nodes-base.youtube",
+      "typeVersion": 1
+    }
+  ],
+  "connections": {
+    "Programador": {
+      "main": [[{ "node": "Buscar_Videos_Pexels" }]]
+    },
+    "Buscar_Videos_Pexels": {
+      "main": [[{ "node": "Seleccionar_Mejores_Clips" }]]
+    },
+    "Seleccionar_Mejores_Clips": {
+      "main": [[{ "node": "Editar_Video_Shotstack" }]]
+    },
+    "Generar_Subtítulos": {
+      "main": [[{ "node": "Editar_Video_Shotstack" }]]
+    },
+    "Editar_Video_Shotstack": {
+      "main": [[{ "node": "Descargar_Video" }]]
+    },
+    "Descargar_Video": {
+      "main": [[{ "node": "Publicar_YouTube" }]]
+    }
+  }
+}
