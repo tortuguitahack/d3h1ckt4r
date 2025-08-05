@@ -1,0 +1,276 @@
+{
+  "name": "Gestión Completa Pedidos y Entregas Licorería Elite",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "pedido-nuevo",
+        "options": {},
+        "responseMode": "lastNode",
+        "responseData": "allEntries"
+      },
+      "name": "Webhook Pedido Nuevo",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "pedido-nuevo-webhook"
+    },
+    {
+      "parameters": {
+        "sheetId": "<TU_GOOGLE_SHEET_ID>",
+        "range": "Inventario!A2:D",
+        "options": {},
+        "dataPropertyName": "data"
+      },
+      "name": "Google Sheets - Leer Inventario",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [500, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": "Google Sheets Cuenta Licoreria"
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "const pedido = items[0].json;\nconst inventario = items[1].json.data || [];\n\nlet stockSuficiente = true;\nlet mensajeError = '';\n\nfor(const item of pedido.items) {\n  const productoInv = inventario.find(p => p[0] === item.producto);\n  if(!productoInv || parseInt(productoInv[2]) < item.cantidad){\n    stockSuficiente = false;\n    mensajeError = `No hay stock suficiente para ${item.producto}`;\n    break;\n  }\n}\n\nreturn [{ json: { stockSuficiente, mensajeError, pedido } }];"
+      },
+      "name": "Validar Stock Pedido",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [750, 300]
+    },
+    {
+      "parameters": {
+        "filter": "={{ $json[\"stockSuficiente\"] === true }}"
+      },
+      "name": "Filtro Stock OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [950, 300]
+    },
+    {
+      "parameters": {
+        "options": {},
+        "sheetId": "<TU_GOOGLE_SHEET_ID>",
+        "range": "Pedidos!A2:H",
+        "valueInputMode": "USER_ENTERED",
+        "dataPropertyName": "data",
+        "valueData": [
+          [
+            "={{ new Date().toISOString() }}",
+            "={{ $json.pedido.cliente }}",
+            "={{ JSON.stringify($json.pedido.items) }}",
+            "pendiente",
+            "={{ $json.pedido.direccion }}",
+            "={{ $json.pedido.telefono }}",
+            "",
+            ""
+          ]
+        ]
+      },
+      "name": "Google Sheets - Guardar Pedido",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [1150, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": "Google Sheets Cuenta Licoreria"
+      }
+    },
+    {
+      "parameters": {
+        "options": {},
+        "sheetId": "<TU_GOOGLE_SHEET_ID>",
+        "range": "Repartidores!A2:C",
+        "dataPropertyName": "data"
+      },
+      "name": "Google Sheets - Leer Repartidores",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [1400, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": "Google Sheets Cuenta Licoreria"
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "const repartidores = items[0].json.data || [];\n// Simple asignación al repartidor con menos pedidos (simulado)\nconst repartidorAsignado = repartidores.length > 0 ? repartidores[0][0] : 'Sin repartidor disponible';\nreturn [{ json: { repartidorAsignado } }];"
+      },
+      "name": "Asignar Repartidor",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1650, 300]
+    },
+    {
+      "parameters": {
+        "options": {},
+        "sheetId": "<TU_GOOGLE_SHEET_ID>",
+        "range": "Pedidos!A2:H",
+        "valueInputMode": "USER_ENTERED",
+        "dataPropertyName": "data",
+        "valueData": [
+          [
+            "pendiente",
+            "={{ $json.repartidorAsignado }}"
+          ]
+        ]
+      },
+      "name": "Actualizar Pedido con Repartidor",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [1900, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": "Google Sheets Cuenta Licoreria"
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "phoneNumber": "={{ $json.pedido.telefono }}",
+        "message": "Hola {{ $json.pedido.cliente }}, tu pedido ha sido recibido y está siendo preparado. Repartidor asignado: {{ $json.repartidorAsignado }}. Gracias por preferirnos.",
+        "options": {}
+      },
+      "name": "WhatsApp - Notificar Cliente Pedido",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [2150, 300],
+      "credentials": {
+        "twilioApi": "Twilio Licoreria WhatsApp"
+      }
+    },
+    {
+      "parameters": {
+        "filter": "={{ $json.stockSuficiente === false }}"
+      },
+      "name": "Filtro Stock Insuficiente",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [950, 450]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "phoneNumber": "={{ $json.pedido.telefono }}",
+        "message": "Lo sentimos {{ $json.pedido.cliente }}, no tenemos stock suficiente para tu pedido: {{ $json.mensajeError }}. Por favor contacta para más información.",
+        "options": {}
+      },
+      "name": "WhatsApp - Notificar Cliente Stock Insuficiente",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [1200, 450],
+      "credentials": {
+        "twilioApi": "Twilio Licoreria WhatsApp"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Pedido Nuevo": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Leer Inventario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - Leer Inventario": {
+      "main": [
+        [
+          {
+            "node": "Validar Stock Pedido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Stock Pedido": {
+      "main": [
+        [
+          {
+            "node": "Filtro Stock OK",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Filtro Stock Insuficiente",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Filtro Stock OK": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Guardar Pedido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - Guardar Pedido": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Leer Repartidores",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - Leer Repartidores": {
+      "main": [
+        [
+          {
+            "node": "Asignar Repartidor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Asignar Repartidor": {
+      "main": [
+        [
+          {
+            "node": "Actualizar Pedido con Repartidor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Actualizar Pedido con Repartidor": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp - Notificar Cliente Pedido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtro Stock Insuficiente": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp - Notificar Cliente Stock Insuficiente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "id": "4"
+}
