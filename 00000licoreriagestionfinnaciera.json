@@ -1,0 +1,208 @@
+{
+  "name": "Gestión Financiera Licorería Elite",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "registro-finanzas",
+        "options": {},
+        "responseMode": "lastNode",
+        "responseData": "allEntries"
+      },
+      "name": "Webhook Registro Finanzas",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "finanzas-registro-webhook"
+    },
+    {
+      "parameters": {
+        "sheetId": "<TU_GOOGLE_SHEET_ID>",
+        "range": "IngresosEgresos!A1:D1",
+        "valueInputMode": "USER_ENTERED",
+        "options": {},
+        "dataPropertyName": "data",
+        "valueData": [
+          [
+            "={{$json[\"fecha\"]}}",
+            "={{$json[\"tipo\"]}}",
+            "={{$json[\"monto\"]}}",
+            "={{$json[\"descripcion\"]}}"
+          ]
+        ]
+      },
+      "name": "Google Sheets - Guardar Finanzas",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [600, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": "Google Sheets Cuenta Licoreria"
+      }
+    },
+    {
+      "parameters": {
+        "filter": "={{ parseFloat($json[\"monto\"]) < 1000 && $json[\"tipo\"] === 'egreso' }}",
+        "continueOnFail": true
+      },
+      "name": "Filtro Egresos Pequeños",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "channel": "#alertas-finanzas",
+        "text": "⚠️ Alerta financiera: Se registró un egreso menor a $1000: {{ $json[\"descripcion\"] }} por ${{ $json[\"monto\"] }}."
+      },
+      "name": "Slack Alerta Egresos",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [800, 300],
+      "credentials": {
+        "slackAuth": "Slack Licoreria Alerta Finanzas"
+      }
+    },
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "type": "daily",
+              "hours": [17],
+              "minutes": [0]
+            }
+          ]
+        }
+      },
+      "name": "Trigger Diario 5PM",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [250, 600]
+    },
+    {
+      "parameters": {
+        "sheetId": "<TU_GOOGLE_SHEET_ID>",
+        "range": "IngresosEgresos!A:D",
+        "options": {},
+        "dataPropertyName": "data"
+      },
+      "name": "Google Sheets - Leer Finanzas",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [500, 600],
+      "credentials": {
+        "googleSheetsOAuth2Api": "Google Sheets Cuenta Licoreria"
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "const ingresos = items[0].json.data.filter(row => row[1] === 'ingreso').reduce((acc, r) => acc + parseFloat(r[2]), 0);\nconst egresos = items[0].json.data.filter(row => row[1] === 'egreso').reduce((acc, r) => acc + parseFloat(r[2]), 0);\nconst metaDiaria = 5000; // Ejemplo de meta diaria\nconst resultado = ingresos - egresos;\nreturn [{ json: { ingresos, egresos, resultado, metaDiaria, alerta: resultado < metaDiaria } }];"
+      },
+      "name": "Calcular Saldo y Meta",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [750, 600]
+    },
+    {
+      "parameters": {
+        "filter": "={{ $json[\"alerta\"] === true }}"
+      },
+      "name": "Filtro Alerta Meta",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [950, 600]
+    },
+    {
+      "parameters": {
+        "channel": "#alertas-finanzas",
+        "text": "🚨 Alerta diaria: Las ganancias netas del día son ${{ $json[\"resultado\"] }}, que están por debajo de la meta diaria de ${{ $json[\"metaDiaria\"] }}."
+      },
+      "name": "Slack Alerta Meta Diaria",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [1150, 600],
+      "credentials": {
+        "slackAuth": "Slack Licoreria Alerta Finanzas"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Registro Finanzas": {
+      "main": [
+        [
+          {
+            "node": "Filtro Egresos Pequeños",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Google Sheets - Guardar Finanzas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtro Egresos Pequeños": {
+      "main": [
+        [
+          {
+            "node": "Slack Alerta Egresos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "main": [
+        []
+      ]
+    },
+    "Trigger Diario 5PM": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Leer Finanzas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - Leer Finanzas": {
+      "main": [
+        [
+          {
+            "node": "Calcular Saldo y Meta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calcular Saldo y Meta": {
+      "main": [
+        [
+          {
+            "node": "Filtro Alerta Meta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtro Alerta Meta": {
+      "main": [
+        [
+          {
+            "node": "Slack Alerta Meta Diaria",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "id": "1"
+}
