@@ -1,0 +1,101 @@
+{
+  "name": "Marketing y Promociones Automatizadas Licorería Elite",
+  "nodes": [
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "type": "weekly",
+              "weekdays": [1],
+              "hours": [10],
+              "minutes": [0]
+            }
+          ]
+        }
+      },
+      "name": "Trigger Semanal Lunes 10am",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "sheetId": "<TU_GOOGLE_SHEET_ID>",
+        "range": "Clientes!A:F",
+        "options": {},
+        "dataPropertyName": "data"
+      },
+      "name": "Google Sheets - Leer Clientes",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [500, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": "Google Sheets Cuenta Licoreria"
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "const clientes = items[0].json.data || [];\n// Filtrar clientes activos y segmentar para promociones\nconst promos = clientes.filter(c => c[5] === 'VIP' || c[5] === 'REGULAR').map(c => {\n  let promocion = '';\n  if (c[5] === 'VIP') {\n    promocion = 'Descuento 20% en toda la tienda esta semana!';\n  } else if (c[5] === 'REGULAR') {\n    promocion = 'Compra 2 cervezas y lleva 1 gratis en marcas seleccionadas!';\n  }\n  return {\n    json: {\n      telefono: c[2],\n      nombre: c[1],\n      promocion\n    }\n  };\n});\nreturn promos;"
+      },
+      "name": "Segmentar Clientes y Crear Promos",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [750, 300]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "phoneNumber": "={{$json.telefono}}",
+        "message": "Hola {{$json.nombre}}! Tenemos para ti esta oferta exclusiva: {{$json.promocion}}. Visítanos en Licorería Elite. ¡Salud!",
+        "options": {}
+      },
+      "name": "WhatsApp - Enviar Promoción",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [1000, 300],
+      "credentials": {
+        "twilioApi": "Twilio Licoreria WhatsApp"
+      }
+    }
+  ],
+  "connections": {
+    "Trigger Semanal Lunes 10am": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Leer Clientes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - Leer Clientes": {
+      "main": [
+        [
+          {
+            "node": "Segmentar Clientes y Crear Promos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Segmentar Clientes y Crear Promos": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp - Enviar Promoción",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "id": "6"
+}
