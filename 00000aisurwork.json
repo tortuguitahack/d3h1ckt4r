@@ -1,0 +1,192 @@
+{
+  "name": "Content Creator Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.query}}",
+        "options": {
+          "systemMessage": "=# Overview\nYou are an experienced AI copywriter specializing in creating engaging, well-structured, and informative blog content. Your writing style is clear, persuasive, and audience-tailored. You optimize materials for readability, SEO, and value, ensuring blogs are well-researched, original, and free of fluff.\n\n## Tools\nPerplexity - Use this tool to search the internet for information on the requested blog topic.\n\n## Blog requirements\nFormat all blog content in HTML, using correct headings (<h1>, <h2>), paragraphs (<p>), bulleted lists (<ul><li>), and links (<a href=\"URL\">) for citations. All quotes from the Perplexity tool must retain active hyperlinks so readers can access the original sources.\n\nMaintain a natural, human tone, use varied sentence structures, and include relevant examples or data as needed. Structure content for easy reading with short paragraphs and logical flow. Always ensure factual accuracy and match tone to the intended brand or goal."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [-440, 80],
+      "id": "d27c4e10-b575-4a8b-9a23-a7d497a863ea",
+      "name": "Content Creator Agent",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "14d9076e-27ea-4846-8b44-f83cf4022b9e",
+              "name": "response",
+              "value": "={{ $json.output }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [0, 0],
+      "id": "5e4147b3-f453-4567-94e1-ab5a0ec1f2fd",
+      "name": "Response"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f2a8ff2d-6b59-4ad6-a2e7-8705354f4105",
+              "name": "response",
+              "value": "An error occurred. Please try again",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [0, 180],
+      "id": "56e350c3-22cd-477b-a56c-b047148fbe16",
+      "name": "Try Again"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [-700, 80],
+      "id": "e3ced0c4-a9ca-4281-b073-82608e92a6c8",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [-640, 300],
+      "id": "97f168f4-77a7-4417-83ee-0915755a29c3",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "rexOZPpovG8s54WC",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Use this tool to search the internet",
+        "method": "POST",
+        "url": "https://api.perplexity.ai/chat/completions",
+        "sendHeaders": true,
+        "parametersHeaders": {
+          "values": [
+            {
+              "name": "Authorization",
+              "valueProvider": "fieldValue",
+              "value": "Bearer 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"
+            },
+            {
+              "name": "Content-Type",
+              "valueProvider": "fieldValue",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"model\": \"sonar\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Search in latest news for the topic that user sent to you.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"{searchTerm}\"\n    }\n  ],\n  \"return_images\": false,\n  \"web_search_options\": {\n    \"search_context_size\": \"high\"\n  }\n}",
+        "placeholderDefinitions": {
+          "values": [
+            {
+              "name": "searchTerm",
+              "description": "What the user has requested to write a blog about",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [-240, 340],
+      "id": "f0f72f83-a1db-4e19-bb07-8e9123bd0582",
+      "name": "Perplexity"
+    }
+  ],
+  "connections": {
+    "Content Creator Agent": {
+      "main": [
+        [
+          {
+            "node": "Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Try Again",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Content Creator Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Content Creator Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Perplexity": {
+      "ai_tool": [
+        [
+          {
+            "node": "Content Creator Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "0e791d0b-14dc-4424-a04c-b097ef075dcd",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a4291cf26a22f5ff64f64c35f1f18e816ce89768135a316426a5040ad9e083eb"
+  },
+  "id": "pHGhSR5XYKOVgiQS",
+  "tags": []
+}
