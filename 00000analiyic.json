@@ -1,0 +1,11 @@
+{
+  "name": "Monitorear_Estadísticas",
+  "type": "n8n-nodes-base.youtube",
+  "parameters": {
+    "operation": "get",
+    "resource": "video",
+    "options": {
+      "id": "={{ $node['Publicar_YouTube'].json.id }}"
+    }
+  }
+}
