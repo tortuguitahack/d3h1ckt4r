@@ -1,0 +1,249 @@
+{
+  "name": "CRM Avanzado y Gestión de Llamadas Licorería Elite",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "registro-cliente",
+        "options": {},
+        "responseMode": "lastNode",
+        "responseData": "allEntries"
+      },
+      "name": "Webhook Registro Cliente",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "registro-cliente-webhook"
+    },
+    {
+      "parameters": {
+        "functionCode": "const cliente = {\n  nombre: $json.nombre || 'Desconocido',\n  telefono: $json.telefono || null,\n  email: $json.email || null,\n  fechaRegistro: new Date().toISOString(),\n  comprasHistoricas: 0,\n  categoria: 'NUEVO'\n};\nreturn [{ json: cliente }];"
+      },
+      "name": "Crear Perfil Cliente",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "sheetId": "<TU_GOOGLE_SHEET_ID>",
+        "range": "Clientes!A:F",
+        "options": {},
+        "dataPropertyName": "data"
+      },
+      "name": "Google Sheets - Leer Clientes",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [750, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": "Google Sheets Cuenta Licoreria"
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "const nuevoCliente = items[0].json;\nconst clientesExistentes = items[1].json.data || [];\nconst encontrado = clientesExistentes.find(c => c[1] === nuevoCliente.telefono);\n\nif(encontrado) {\n  // Cliente existente: actualizar compras y categoría\n  const compras = parseInt(encontrado[4]) + 1;\n  let categoria = 'REGULAR';\n  if(compras >= 5) categoria = 'VIP';\n  return [{ json: {\n    rowIndex: clientesExistentes.indexOf(encontrado) + 2,\n    nombre: nuevoCliente.nombre,\n    telefono: nuevoCliente.telefono,\n    email: nuevoCliente.email,\n    comprasHistoricas: compras,\n    categoria\n  } }];\n} else {\n  return [{ json: {\n    nuevo: true,\n    datos: nuevoCliente\n  } }];\n}"
+      },
+      "name": "Actualizar o Nuevo Cliente",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1000, 300]
+    },
+    {
+      "parameters": {
+        "sheetId": "<TU_GOOGLE_SHEET_ID>",
+        "range": "Clientes!A:F",
+        "options": {},
+        "valueInputMode": "USER_ENTERED",
+        "dataPropertyName": "data",
+        "valueData": [
+          [
+            "={{$json.nuevo ? '' : $json.rowIndex}}",
+            "={{$json.nombre || $json.datos.nombre}}",
+            "={{$json.telefono || $json.datos.telefono}}",
+            "={{$json.email || $json.datos.email}}",
+            "={{$json.comprasHistoricas || 1}}",
+            "={{$json.categoria || 'NUEVO'}}"
+          ]
+        ]
+      },
+      "name": "Google Sheets - Guardar Cliente",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [1250, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": "Google Sheets Cuenta Licoreria"
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "const fechaLlamada = new Date();\nfechaLlamada.setDate(fechaLlamada.getDate() + 1);\nreturn [{ json: { telefono: $json.telefono || $json.datos.telefono, fechaLlamada: fechaLlamada.toISOString() } }];"
+      },
+      "name": "Planificar Llamada Seguimiento",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1500, 300]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "phoneNumber": "={{$json.telefono}}",
+        "message": "Hola {{ $json.telefono }}, gracias por tu compra. Nos contactaremos contigo para darte atención personalizada. Saludos, Licorería Elite.",
+        "options": {}
+      },
+      "name": "WhatsApp - Mensaje Bienvenida",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [1500, 100],
+      "credentials": {
+        "twilioApi": "Twilio Licoreria WhatsApp"
+      }
+    },
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": []
+        }
+      },
+      "name": "Trigger Seguimiento Llamadas",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [1750, 300]
+    },
+    {
+      "parameters": {
+        "sheetId": "<TU_GOOGLE_SHEET_ID>",
+        "range": "Clientes!A:F",
+        "options": {},
+        "dataPropertyName": "data"
+      },
+      "name": "Google Sheets - Leer Clientes Para Seguimiento",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [2000, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": "Google Sheets Cuenta Licoreria"
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "const ahora = new Date();\nconst llamadasProgramadas = items[0].json.data.filter(c => c[5] === 'NUEVO' || c[5] === 'REGULAR');\nconst llamadasHoy = llamadasProgramadas.filter(c => new Date(c[6]) <= ahora);\nreturn llamadasHoy.map(c => ({ json: { telefono: c[2], nombre: c[1] } }));"
+      },
+      "name": "Filtrar Llamadas Hoy",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2250, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "<CHAT_ID_TELEGRAM>",
+        "text": "Recordatorio: Llamada de seguimiento con cliente {{ $json.nombre }} ({{ $json.telefono }}) programada para hoy.",
+        "options": {}
+      },
+      "name": "Telegram - Recordatorio Llamadas",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [2500, 300],
+      "credentials": {
+        "telegramApi": "Telegram Licoreria"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Registro Cliente": {
+      "main": [
+        [
+          {
+            "node": "Crear Perfil Cliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear Perfil Cliente": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Leer Clientes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - Leer Clientes": {
+      "main": [
+        [
+          {
+            "node": "Actualizar o Nuevo Cliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Actualizar o Nuevo Cliente": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Guardar Cliente",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Planificar Llamada Seguimiento",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "WhatsApp - Mensaje Bienvenida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Planificar Llamada Seguimiento": {
+      "main": [
+        []
+      ]
+    },
+    "Trigger Seguimiento Llamadas": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Leer Clientes Para Seguimiento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - Leer Clientes Para Seguimiento": {
+      "main": [
+        [
+          {
+            "node": "Filtrar Llamadas Hoy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrar Llamadas Hoy": {
+      "main": [
+        [
+          {
+            "node": "Telegram - Recordatorio Llamadas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "id": "3"
+}
