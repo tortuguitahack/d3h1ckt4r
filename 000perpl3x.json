@@ -1,0 +1,325 @@
+"nodes": [
+{
+"id": "1",
+"name": "Trigger Horario",
+"type": "n8n-nodes-base.scheduleTrigger",
+"typeVersion": 1,
+"position": [100, 300],
+"parameters": {
+"cronExpression": "0 * * * *",
+"timezone": "America/New_York"
+}
+},
+{
+"id": "2",
+"name": "Set Credenciales",
+"type": "n8n-nodes-base.set",
+"typeVersion": 1,
+"position": [300, 300],
+"parameters": {
+"values": {
+"string": [
+{ "name": "openai_api_key", "value": "TU_API_KEY_OPENAI" },
+{ "name": "amazon_access_key", "value": "TU_AMAZON_ACCESS_KEY" },
+{ "name": "amazon_secret_key", "value": "TU_AMAZON_SECRET_KEY" },
+{ "name": "amazon_partner_tag", "value": "TU_TAG_AFILIADO" },
+{ "name": "github_repo_owner", "value": "TU_GITHUB_USERNAME" },
+{ "name": "github_repo", "value": "TU_REPO_GITHUB_PAGES" },
+{ "name": "github_branch", "value": "main" },
+{ "name": "github_token", "value": "TU_GITHUB_TOKEN" },
+{ "name": "slack_webhook_url", "value": "TU_SLACK_WEBHOOK" },
+{ "name": "google_sheets_sheet_id", "value": "TU_GOOGLE_SHEETS_ID" },
+{ "name": "ayrshare_api_key", "value": "TU_AYRSHARE_API_KEY" },
+{ "name": "social_twitter_url", "value": "https://twitter.com/tu_usuario" },
+{ "name": "social_facebook_url", "value": "https://facebook.com/tu_usuario" },
+{ "name": "social_instagram_url", "value": "https://instagram.com/tu_usuario" },
+{ "name": "social_linkedin_url", "value": "https://linkedin.com/in/tu_usuario" },
+{ "name": "social_telegram_url", "value": "https://t.me/tu_usuario" }
+]
+}
+}
+},
+{
+"id": "3",
+"name": "Seleccionar Nicho Aleatorio",
+"type": "n8n-nodes-base.function",
+"typeVersion": 1,
+"position": [500, 300],
+"parameters": {
+"functionCode": "const niches = ['Tecnología', 'Hogar', 'Deportes', 'Belleza', 'Cocina'];\nconst selected = niches[Math.floor(Math.random() * niches.length)];\nreturn [{ json: { niche: selected } }];"
+}
+},
+{
+"id": "4",
+"name": "Buscar Productos Amazon PA-API",
+"type": "n8n-nodes-base.httpRequest",
+"typeVersion": 1,
+"position": [700, 300],
+"parameters": {
+"url": "https://webservices.amazon.com/paapi5/searchitems",
+"method": "POST",
+"bodyContentType": "json",
+"headers": {
+"Content-Type": "application/json"
+},
+"bodyParametersUi": {
+"parameter": [
+{ "name": "Keywords", "value": "={{$json["niche"]}}" },
+{ "name": "PartnerTag", "value": "={{$json["amazon_partner_tag"]}}" },
+{ "name": "PartnerType", "value": "Associates" },
+{ "name": "SearchIndex", "value": "All" },
+{ "name": "ItemCount", "value": "5" }
+]
+},
+"responseFormat": "json"
+}
+},
+{
+"id": "5",
+"name": "Generar Contenido con IA (OpenAI)",
+"type": "n8n-nodes-base.openAi",
+"typeVersion": 1,
+"position": [900, 300],
+"parameters": {
+"model": "gpt-4",
+"temperature": 0.7,
+"maxTokens": 1000,
+"messages": [
+{
+"role": "system",
+"content": "Eres un experto en marketing de afiliados creando contenido SEO y copywriting persuasivo."
+},
+{
+"role": "user",
+"content": "Crea un artículo de 700 palabras sobre los mejores productos del nicho {{$json["niche"]}} basados en estos datos: {{$json["Items"]}}. Incluye título SEO, meta descripción, reseñas con enlaces de afiliado y un llamado a la acción claro."
+}
+]
+},
+"credentials": {
+"openAIApi": "openai_api_key"
+}
+},
+{
+"id": "6",
+"name": "Validaciones Avanzadas",
+"type": "n8n-nodes-base.if",
+"typeVersion": 1,
+"position": [1100, 300],
+"parameters": {
+"conditions": {
+"string": [
+{
+"value1": "={{$json["choices"] && $json["choices"] && $json["choices"].message && $json["choices"].message.content.length}}",
+"operation": "larger",
+"value2": "700"
+},
+{
+"value1": "={{$json["choices"].message.content.includes('amazon.com')}}",
+"operation": "contains",
+"value2": "amazon.com"
+}
+]
+},
+"combineOperation": "AND"
+}
+},
+{
+"id": "7",
+"name": "Construir HTML",
+"type": "n8n-nodes-base.function",
+"typeVersion": 1,
+"position": [1300, 300],
+"parameters": {
+"functionCode": "const title = Los mejores productos de ${$json.niche} - Amazon Afiliados;\nconst metaDescription = Descubre los mejores productos de ${$json.niche} con enlaces afiliados directos en Amazon.;\nconst content = $json.choices.message.content.replace(/\n/g, '
+');\n\nconst html = <!DOCTYPE html><html lang=\\"es\\"><head><meta charset=\\"UTF-8\\"><title>${title}</title><meta name=\\"description\\" content=\\"${metaDescription}\\"><meta name=\\"viewport\\" content=\\"width=device-width, initial-scale=1.0\\"><style>body{font-family:sans-serif;max-width:800px;margin:auto;padding:20px;}h1{color:#222;}a{color:#0073e6;text-decoration:none;}a:hover{text-decoration:underline;}</style></head><body><h1>${title}</h1>${content}</body></html>;\n\nreturn [{ json: { htmlContent: html, fileName: ${$json.niche.toLowerCase().replace(/\\s+/g, '-')}-${Date.now()}.html, niche: $json.niche } }];"
+}
+},
+{
+"id": "8",
+"name": "Guardar HTML en Archivo Binario",
+"type": "n8n-nodes-base.writeBinaryFile",
+"typeVersion": 1,
+"position": [1500, 300],
+"parameters": {}
+},
+{
+"id": "9",
+"name": "Commit & Push a GitHub Pages",
+"type": "n8n-nodes-base.github",
+"typeVersion": 1,
+"position": [1700, 300],
+"parameters": {
+"repository": "={{$json["github_repo"]}}",
+"branch": "={{$json["github_branch"]}}",
+"owner": "={{$json["github_repo_owner"]}}",
+"fileName": "={{$json["fileName"]}}",
+"fileContent": "={{$json["htmlContent"]}}",
+"commitMessage": "Página automática para nicho {{$json["niche"]}} - {{new Date().toISOString()}}"
+},
+"credentials": {
+"githubApi": "github_token"
+}
+},
+{
+"id": "10",
+"name": "Registrar en Google Sheets",
+"type": "n8n-nodes-base.googleSheets",
+"typeVersion": 1,
+"position": [1900, 280],
+"parameters": {
+"authentication": "serviceAccount",
+"operation": "append",
+"sheetId": "={{$json["google_sheets_sheet_id"]}}",
+"range": "Página1!A1:F1",
+"valueInputMode": "RAW",
+"options": {},
+"values": [
+[
+"={{$json["niche"]}}",
+"={{new Date().toISOString()}}",
+"={{https://${$json[\"github_repo_owner\"]}.github.io/${$json[\"github_repo\"]}/${$json[\"fileName\"]}}}",
+"={{$json["fileName"]}}",
+"Enlace editorial generado (HTML con enlaces afiliados)",
+"Activo"
+]
+]
+}
+},
+{
+"id": "11",
+"name": "Construir Texto Social para Publicar",
+"type": "n8n-nodes-base.function",
+"typeVersion": 1,
+"position": [2100, 300],
+"parameters": {
+"functionCode": "const niche = $json.niche;\nconst url = https://${$json.github_repo_owner}.github.io/${$json.github_repo}/${$json.fileName};\nconst message = Descubre los mejores productos de ${niche} en Amazon! 🔥 Revisa nuestra guía completa aquí: ${url} #AmazonAfiliados #${niche.replace(/\\s+/g, '')};\nreturn [{json: { postText: message }}];"
+}
+},
+{
+"id": "12",
+"name": "Publicar en Redes Sociales (Ayrshare)",
+"type": "n8n-nodes-base.httpRequest",
+"typeVersion": 1,
+"position": [2300, 300],
+"parameters": {
+"url": "https://app.ayrshare.com/api/post",
+"method": "POST",
+"jsonParameters": true,
+"headers": {
+"Content-Type": "application/json",
+"Authorization": "Bearer {{$json['ayrshare_api_key']}}"
+},
+"bodyParametersJson": "{"post":"{{$json[\"postText\"]}}","platforms":["twitter","facebook","instagram","linkedin","telegram"],"profileUrls":["{{$json['social_twitter_url']}}","{{$json['social_facebook_url']}}","{{$json['social_instagram_url']}}","{{$json['social_linkedin_url']}}","{{$json['social_telegram_url']}}"]}"
+}
+},
+{
+"id": "13",
+"name": "Notificar Slack",
+"type": "n8n-nodes-base.httpRequest",
+"typeVersion": 1,
+"position": [2500, 300],
+"parameters": {
+"url": "={{$json["slack_webhook_url"]}}",
+"method": "POST",
+"jsonParameters": true,
+"bodyParametersJson": "{"text":"✅ Página creada y publicada para nicho {{$json[\"niche\"]}}. URL: https://{{$json[\"github_repo_owner\"]}}.github.io/{{$json[\"github_repo\"]}}/{{$json[\"fileName\"]}}\n🔗 Publicada en redes sociales."}"
+}
+}
+],
+"connections": {
+"Trigger Horario": {
+"main": [
+[
+{ "node": "Set Credenciales", "type": "main", "index": 0 }
+]
+]
+},
+"Set Credenciales": {
+"main": [
+[
+{ "node": "Seleccionar Nicho Aleatorio", "type": "main", "index": 0 }
+]
+]
+},
+"Seleccionar Nicho Aleatorio": {
+"main": [
+[
+{ "node": "Buscar Productos Amazon PA-API", "type": "main", "index": 0 }
+]
+]
+},
+"Buscar Productos Amazon PA-API": {
+"main": [
+[
+{ "node": "Generar Contenido con IA (OpenAI)", "type": "main", "index": 0 }
+]
+]
+},
+"Generar Contenido con IA (OpenAI)": {
+"main": [
+[
+{ "node": "Validaciones Avanzadas", "type": "main", "index": 0 }
+]
+]
+},
+"Validaciones Avanzadas": {
+"main": [
+[
+{ "node": "Construir HTML", "type": "main", "index": 0 }
+],
+[
+{
+"node": "Notificar Slack",
+"type": "main",
+"index": 0
+}
+]
+]
+},
+"Construir HTML": {
+"main": [
+[
+{ "node": "Guardar HTML en Archivo Binario", "type": "main", "index": 0 }
+]
+]
+},
+"Guardar HTML en Archivo Binario": {
+"main": [
+[
+{ "node": "Commit & Push a GitHub Pages", "type": "main", "index": 0 }
+]
+]
+},
+"Commit & Push a GitHub Pages": {
+"main": [
+[
+{ "node": "Registrar en Google Sheets", "type": "main", "index": 0 }
+]
+]
+},
+"Registrar en Google Sheets": {
+"main": [
+[
+{ "node": "Construir Texto Social para Publicar", "type": "main", "index": 0 }
+]
+]
+},
+"Construir Texto Social para Publicar": {
+"main": [
+[
+{ "node": "Publicar en Redes Sociales (Ayrshare)", "type": "main", "index": 0 }
+]
+]
+},
+"Publicar en Redes Sociales (Ayrshare)": {
+"main": [
+[
+{ "node": "Notificar Slack", "type": "main", "index": 0 }
+]
+]
+}
+},
+"active": false,
+"settings": {},
+"id": "amazon-affiliate-advanced-workflow"
+}
