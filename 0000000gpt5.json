@@ -1,0 +1,364 @@
+{
+  "name": "Ultimate_AI_Personal_Assistant_Template",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        250,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "messageText",
+              "value": "={{$json[\"messageText\"] || $json[\"body\"] || \"\"}}"
+            },
+            {
+              "name": "fileUrl",
+              "value": "={{$json[\"fileUrl\"] || \"\"}}"
+            },
+            {
+              "name": "source",
+              "value": "manual"
+            }
+          ]
+        }
+      },
+      "name": "Prepare Payload",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        450,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json[\"fileUrl\"]}}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "name": "Has File?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        650,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$json[\"fileUrl\"]}}",
+        "responseFormat": "file",
+        "options": {}
+      },
+      "name": "Download File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        850,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// REPLACE: aquí debes llamar a Whisper / STT real (HTTP Request con multipart/form-data)\n// Por ahora placeholder que copia un texto simulado\nitems[0].json.transcription = 'TRANSCRIBED TEXT PLACEHOLDER - reemplazar por resultado real de STT';\nreturn items;"
+      },
+      "name": "Transcribe (placeholder)",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1050,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Compose final text: si tenemos transcription usamos eso, si no usamos messageText\nconst msg = $json[\"transcription\"] || $json[\"messageText\"] || '';\nitems[0].json.final_text = msg;\nreturn items;"
+      },
+      "name": "Compose Text",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1250,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.openai.com/v1/chat/completions",
+        "method": "POST",
+        "jsonParameters": true,
+        "options": {},
+        "headerParametersJson": "={\"Authorization\":\"Bearer {{$env.OPENAI_API_KEY}}\",\"Content-Type\":\"application/json\"}",
+        "bodyParametersJson": "={\"model\":\"gpt-4o-mini\",\"messages\":[{\"role\":\"system\",\"content\":\"Eres un orquestador de agentes. Recibirás texto y debes responder UNICAMENTE en JSON (sin texto adicional) con la forma: { \\\"calendar\\\":{...}, \\\"email\\\":{...}, \\\"contact\\\":{...}, \\\"createContent\\\":{...}, \\\"delivery\\\":{...} } . Cada campo opcional puede ser null si no corresponde. Sé conciso y devuelve solo JSON válido.\"},{\"role\":\"user\",\"content\": {{$json[\"final_text\"]}} }],\"temperature\":0.2,\"max_tokens\":800}"
+      },
+      "name": "OpenAI Orchestrator (Chat)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        1450,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Parse orchestration output (esperamos JSON en choices[0].message.content)\nconst raw = $json[\"body\"] || $json[\"choices\"]?.[0]?.message?.content || $json[\"choices\"]?.[0]?.text || null;\nlet parsed = {};\ntry {\n  // algunos modelos devuelven el JSON sin comillas adecuadas; asumimos JSON válido\n  const candidate = typeof raw === 'string' ? raw.trim() : raw;\n  parsed = JSON.parse(candidate);\n} catch (e) {\n  // fallback: intentar extraer primer bloque JSON\n  const s = (raw || '').toString();\n  const m = s.match(/\\{[\\s\\S]*\\}/);\n  if (m) {\n    try { parsed = JSON.parse(m[0]); } catch(err) { parsed = {error: 'no-json', raw: s}; }\n  } else parsed = {error: 'no-json', raw: s};\n}\nitems[0].json.orchestration = parsed;\n// expand into multiple properties para que cada agente reciba el mismo payload\nreturn items;"
+      },
+      "name": "Parse Orchestration",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1650,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Placeholder: crear evento en Google Calendar\nconst o = $json.orchestration || {};\nif (!o.calendar) {\n  return [];\n}\n// En producción reemplaza por nodo Google Calendar: create event usando o.calendar.*\nitems[0].json.calendarResult = { status: 'placeholder_created', details: o.calendar };\nreturn items;"
+      },
+      "name": "Create Event (Calendar) - placeholder",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1850,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Placeholder: enviar email (SendGrid / SMTP). Reemplaza por nodo SendGrid o HTTP Request con tu API\nconst o = $json.orchestration || {};\nif (!o.email) return [];\nitems[0].json.emailResult = { status: 'placeholder_sent', details: o.email };\nreturn items;"
+      },
+      "name": "Send Email (placeholder)",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1850,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Placeholder: actualizar contacto en Airtable/CRM\nconst o = $json.orchestration || {};\nif (!o.contact) return [];\nitems[0].json.contactResult = { status: 'placeholder_updated', details: o.contact };\nreturn items;"
+      },
+      "name": "Update Contact (placeholder)",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1850,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Placeholder: crear contenido (texto, caption, tags). Reemplaza por OpenAI text generation y por saver nodes\nconst o = $json.orchestration || {};\nif (!o.createContent) return [];\nitems[0].json.content = { title: 'TITLE_PLACEHOLDER', body: 'BODY_PLACEHOLDER based on: '+JSON.stringify(o.createContent) };\nreturn items;"
+      },
+      "name": "Create Content (placeholder)",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1850,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Placeholder: guardar contenido en Drive / S3\nif (!$json.content) return [];\nitems[0].json.saved = { id: 'placeholder_file_id', path: '/drive/...'};\nreturn items;"
+      },
+      "name": "Save Content (placeholder)",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2050,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Placeholder: publicar en canal (Telegram, X, Facebook). Reemplaza por HTTP Request a cada API o por nodos oficiales.\nif (!$json.saved && !$json.content) return [];\nitems[0].json.published = { channels: ['telegram','x'], status: 'placeholder_ok' };\nreturn items;"
+      },
+      "name": "Post to Social (placeholder)",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2250,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Final logging: guarda todo en una hoja / airtable\nitems[0].json.log = { time: new Date().toISOString(), orchestration: $json.orchestration || null };\nreturn items;"
+      },
+      "name": "Log (placeholder)",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2450,
+        260
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Prepare Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Payload": {
+      "main": [
+        [
+          {
+            "node": "Has File?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has File?": {
+      "main": [
+        [
+          {
+            "node": "Download File",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Compose Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download File": {
+      "main": [
+        [
+          {
+            "node": "Transcribe (placeholder)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe (placeholder)": {
+      "main": [
+        [
+          {
+            "node": "Compose Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compose Text": {
+      "main": [
+        [
+          {
+            "node": "OpenAI Orchestrator (Chat)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Orchestrator (Chat)": {
+      "main": [
+        [
+          {
+            "node": "Parse Orchestration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Orchestration": {
+      "main": [
+        [
+          {
+            "node": "Create Event (Calendar) - placeholder",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send Email (placeholder)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update Contact (placeholder)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create Content (placeholder)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log (placeholder)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Content (placeholder)": {
+      "main": [
+        [
+          {
+            "node": "Save Content (placeholder)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Content (placeholder)": {
+      "main": [
+        [
+          {
+            "node": "Post to Social (placeholder)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post to Social (placeholder)": {
+      "main": [
+        [
+          {
+            "node": "Log (placeholder)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}
