@@ -1,6 +1,6 @@
 {
   "name": "Amazon de Afiliados Automatizado",
-  "descripcion": "Workflow profesional n8n para generar paginas de afiliados amazon, validar contenido.".
+  "descripcion": "Workflow profesional n8n para generar paginas de afiliados amazon, validar contenido.",
   "nodes": [
 {
 "id": "1",
