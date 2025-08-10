@@ -1,0 +1,265 @@
+{
+  "name": "Amazon Affiliate Site Generator - Free Tier",
+  "description": "Workflow profesional para crear automáticamente páginas de afiliados Amazon, publicarlas en GitHub Pages y notificar.",
+  "nodes": [
+    {
+      "parameters": {
+        "cronExpression": "0 * * * *",
+        "timezone": "America/New_York"
+      },
+      "id": "1",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [100, 300]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            { "name": "openai_api_key", "value": "TU_API_KEY_OPENAI" },
+            { "name": "amazon_access_key", "value": "TU_AMAZON_ACCESS_KEY" },
+            { "name": "amazon_secret_key", "value": "TU_AMAZON_SECRET_KEY" },
+            { "name": "amazon_partner_tag", "value": "TU_TAG_AFILIADO" },
+            { "name": "github_repo_owner", "value": "TU_GITHUB_USERNAME" },
+            { "name": "github_repo", "value": "TU_REPO_GITHUB_PAGES" },
+            { "name": "github_branch", "value": "main" },
+            { "name": "github_token", "value": "TU_GITHUB_TOKEN" },
+            { "name": "slack_webhook_url", "value": "TU_SLACK_WEBHOOK" }
+          ]
+        }
+      },
+      "id": "2",
+      "name": "Set Credentials",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [300, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "const nichos = ['Tecnología', 'Hogar', 'Deportes', 'Belleza', 'Cocina'];\nconst nicho = nichos[Math.floor(Math.random() * nichos.length)];\n\nreturn [{ json: { niche: nicho } }];"
+      },
+      "id": "3",
+      "name": "Seleccionar Nicho",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://webservices.amazon.com/paapi5/searchitems",
+        "options": {},
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "Keywords",
+              "value": "={{$json[\"niche\"]}}"
+            },
+            {
+              "name": "PartnerTag",
+              "value": "={{$json[\"partnerTag\"]}}"
+            },
+            {
+              "name": "PartnerType",
+              "value": "Associates"
+            },
+            {
+              "name": "SearchIndex",
+              "value": "All"
+            },
+            {
+              "name": "ItemCount",
+              "value": "5"
+            }
+          ]
+        },
+        "bodyContentType": "json",
+        "responseFormat": "json"
+      },
+      "id": "4",
+      "name": "Buscar Productos Amazon",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [700, 300],
+      "credentials": {}
+    },
+    {
+      "parameters": {
+        "model": "gpt-4",
+        "temperature": 0.7,
+        "maxTokens": 1000,
+        "stopSequences": [],
+        "topP": 1,
+        "frequencyPenalty": 0,
+        "presencePenalty": 0,
+        "messages": [
+          {
+            "role": "system",
+            "content": "Eres un experto en redacción de contenido para marketing de afiliados en Amazon."
+          },
+          {
+            "role": "user",
+            "content": "Escribe un artículo de 700 palabras sobre los mejores productos en el nicho: {{$json[\"niche\"]}} basados en estos productos:\n{{$json[\"Items\"]}}\nIncluye título SEO, meta descripción y un llamado a la acción para recomendar con enlace de afiliado del producto."
+          }
+        ]
+      },
+      "id": "5",
+      "name": "Generar Contenido IA",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [900, 300],
+      "credentials": {
+        "openAIApi": "openai_api_key"
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "const title = $json.title || `Los mejores productos de ${$json.niche} en Amazon`;\nconst metaDescription = $json.meta_description || `Conoce los productos top en el nicho ${$json.niche} y aprovecha las mejores ofertas.`;\n\nconst content = $json.choices ? $json.choices[0].message.content : '';\n\nconst html = `<!DOCTYPE html>\n<html lang=\"es\">\n<head>\n<meta charset=\"UTF-8\">\n<title>${title}</title>\n<meta name=\"description\" content=\"${metaDescription}\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n<style>\nbody {font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: auto;}\nh1 {color: #333;}\np {line-height: 1.6;}\na {color: #0073e6; text-decoration: none;}\na:hover {text-decoration: underline;}\n</style>\n</head>\n<body>\n<h1>${title}</h1>\n${content.replace(/\\n/g, '<br>')}\n</body>\n</html>`;\n\nreturn [{json:{htmlContent: html, fileName: `$\{n8n.getWorkflowStaticData('global').niche || 'amazon-niche'}.html`}}];"
+      },
+      "id": "6",
+      "name": "Construir HTML",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1100, 300]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "7",
+      "name": "Crear Archivo HTML",
+      "type": "n8n-nodes-base.writeBinaryFile",
+      "typeVersion": 1,
+      "position": [1300, 300]
+    },
+    {
+      "parameters": {
+        "repository": "={{$json[\"github_repo\"]}}",
+        "branch": "={{$json[\"github_branch\"]}}",
+        "owner": "={{$json[\"github_repo_owner\"]}}",
+        "fileName": "={{$json[\"fileName\"]}}",
+        "fileContent": "={{$json[\"htmlContent\"]}}",
+        "commitMessage": "Nueva página generada automáticamente para nicho {{$json[\"niche\"]}} - {{new Date().toISOString()}}"
+      },
+      "id": "8",
+      "name": "Commit & Push GitHub",
+      "type": "n8n-nodes-base.github",
+      "typeVersion": 1,
+      "position": [1500, 300],
+      "credentials": {
+        "githubApi": "github_token"
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{$json[\"slack_webhook_url\"]}}",
+        "method": "POST",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "{\"text\":\"Página creada y publicada automáticamente para el nicho: {{$json[\"niche\"]}}. Revisa en: https://{{$json[\"github_repo_owner\"]}}.github.io/{{$json[\"github_repo\"]}}/{{$json[\"fileName\"]}}\"}"
+      },
+      "id": "9",
+      "name": "Notificar Slack",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1700, 300]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Credentials",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Credentials": {
+      "main": [
+        [
+          {
+            "node": "Seleccionar Nicho",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Seleccionar Nicho": {
+      "main": [
+        [
+          {
+            "node": "Buscar Productos Amazon",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Productos Amazon": {
+      "main": [
+        [
+          {
+            "node": "Generar Contenido IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generar Contenido IA": {
+      "main": [
+        [
+          {
+            "node": "Construir HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Construir HTML": {
+      "main": [
+        [
+          {
+            "node": "Crear Archivo HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear Archivo HTML": {
+      "main": [
+        [
+          {
+            "node": "Commit & Push GitHub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Commit & Push GitHub": {
+      "main": [
+        [
+          {
+            "node": "Notificar Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "id": "amazon-affiliate-generator"
+}
