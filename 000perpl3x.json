@@ -1,4 +1,7 @@
-"nodes": [
+{
+  "name": Amazon de Afiliados Automatizado".
+  "descripcion": "Workflow profesional n8n para generar paginas de afiliados azamzon, validar contenido.".
+  "nodes": [
 {
 "id": "1",
 "name": "Trigger Horario",
