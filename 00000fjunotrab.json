@@ -1,0 +1,158 @@
+{
+  "name": "Elite Sales Multiagent Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "elite-sales-webhook"
+      },
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.httpTrigger",
+      "typeVersion": 1,
+      "position": [150, 300]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "agentType": "multiAgent",
+        "agents": [
+          {
+            "name": "Supervisor Agent",
+            "role": "system",
+            "prompt": "Eres el Supervisor de IA de un sistema multiagente global orientado a ventas masivas con hipnosis conversacional.\n\nTu objetivo es:\n- Analizar la solicitud y entender la intención de venta.\n- Delegar tareas a agentes: Copy Hipnótico, Imágenes IA, Video Veo 3, Redes Sociales, Afiliados (Amazon, Hotmart, ClickBank).\n- Coordinar ejecución manteniento contexto para conversiones máximas.\n- Generar respuestas y resúmenes con persuasión avanzada.\n\nAgentes disponibles:\n- Copy Hipnótico\n- Imágenes IA\n- Video Veo 3\n- Redes Sociales\n- Amazon Affiliate Agent\n- Hotmart Affiliate Agent\n- ClickBank Affiliate Agent\n\nRecuerda usar técnicas de neuroventa, emociones y CTA claros. Confirma acciones y mantén profesionalismo."
+          },
+          {
+            "name": "Copy Hipnótico",
+            "role": "system",
+            "prompt": "Eres un experto en copywriting con enfoque en hipnosis conversacional y neuroventa.\n\nTarea:\n- Crear textos de ventas persuasivos, ajustados a país y red social.\n- Usa lenguaje sensorial, anclaje emocional, storytelling.\n- Incluye CTA, urgencia, escasez y prueba social.\n- Genera título, texto y hashtags específicos para cada plataforma."
+          },
+          {
+            "name": "Imágenes IA",
+            "role": "system",
+            "prompt": "Genera imágenes impactantes basadas en texto de venta, usando estilo emocional y colores que transmitan urgencia o confianza, adaptadas para Instagram, Facebook, Twitter, TikTok y stories."
+          },
+          {
+            "name": "Video Veo 3",
+            "role": "system",
+            "prompt": "Crea videos cortos (15-60s) combinando voz en off, animaciones y textos basados en el copy generado. Ajusta ritmo y formato para TikTok, Instagram Reels y YouTube Shorts."
+          },
+          {
+            "name": "Redes Sociales",
+            "role": "system",
+            "prompt": "Publica el contenido hipnótico con imágenes y videos en Facebook, Instagram, TikTok, YouTube, LinkedIn y Twitter, programando para horarios óptimos segun país."
+          },
+          {
+            "name": "Amazon Affiliate Agent",
+            "role": "system",
+            "prompt": "Genera enlaces de afiliado para Amazon (US, UK, CA, DE, FR, ES, IT, JP, AU, BR) con títulos y textos persuasivos adaptados a cada mercado."
+          },
+          {
+            "name": "Hotmart Affiliate Agent",
+            "role": "system",
+            "prompt": "Genera enlaces y textos promocionales para productos digitales Hotmart para diferentes países, con lenguaje convincente y culturalmente relevante."
+          },
+          {
+            "name": "ClickBank Affiliate Agent",
+            "role": "system",
+            "prompt": "Genera enlaces de afiliado y mensajes promocionales para productos ClickBank segmentando geográficamente."
+          }
+        ],
+        "inputField": "body.message",
+        "memoryType": "vectorMemory",
+        "memoryStorage": "external",
+        "vectorMemory": {
+          "service": "Pinecone",
+          "indexName": "elite-sales-memory",
+          "credentials": {
+            "apiKey": "YOUR_PINECONE_API_KEY",
+            "environment": "us-west1-gcp"
+          }
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 1600
+        }
+      },
+      "name": "AI Agent Supervisor",
+      "type": "n8n-nodes-base.aiAgent",
+      "typeVersion": 1,
+      "position": [550, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "post",
+        "operation": "create",
+        "network": "twitter",
+        "text": "={{$json[\"tweetContent\"]}}"
+      },
+      "name": "Post Tweet",
+      "type": "n8n-nodes-base.twitter",
+      "typeVersion": 1,
+      "position": [850, 150]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "post",
+        "network": "facebook",
+        "message": "={{$json[\"fbPost\"]}}"
+      },
+      "name": "Post Facebook",
+      "type": "n8n-nodes-base.facebookGraph",
+      "typeVersion": 1,
+      "position": [850, 250]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "uploadVideo",
+        "network": "youtube",
+        "title": "={{$json[\"ytTitle\"]}}",
+        "description": "={{$json[\"ytDesc\"]}}"
+      },
+      "name": "Upload YouTube",
+      "type": "n8n-nodes-base.youtube",
+      "typeVersion": 1,
+      "position": [850, 350]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "AI Agent Supervisor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent Supervisor": {
+      "main": [
+        [
+          {
+            "node": "Post Tweet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Post Facebook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Upload YouTube",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  ]
+}
