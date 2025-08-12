@@ -1,0 +1,84 @@
+{
+  "name": "Licorería Elite Integrado WhatsApp",
+  "nodes": [
+    {
+      "name": "Webhook Pedido",
+      "type": "n8n-nodes-base.webhook",
+      "parameters": { "httpMethod": "POST", "path": "pedido-nuevo", "options": {} },
+      "position": [100, 100]
+    },
+    {
+      "name": "Leer Inventario",
+      "type": "n8n-nodes-base.googleSheets",
+      "parameters": { "sheetId": "<GOOGLE_SHEETS_ID>", "range": "Inventario_Licores!A1:H", "dataPropertyName": "data" },
+      "position": [300, 100],
+      "credentials": { "googleSheetsOAuth2Api": "Google Sheets Licoreria" }
+    },
+    {
+      "name": "Calcular Monto y Stock",
+      "type": "n8n-nodes-base.function",
+      "parameters": {
+        "functionCode": "/* Valida stock, calcula precio total del pedido usando inventario */"
+      },
+      "position": [500, 100]
+    },
+    {
+      "name": "Generar PayPal QR",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "url": "https://api.qrserver.com/v1/create-qr-code/?data=https://paypal.me/tu_cuenta/{{ $json.monto_total }}&size=200x200",
+        "responseFormat": "file"
+      },
+      "position": [700, 100]
+    },
+    {
+      "name": "WhatsApp Notifi Pedido/Qr",
+      "type": "n8n-nodes-base.twilio",
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "phoneNumber": "={{$json.telefono}}",
+        "message": "Gracias {{$json.cliente}}. Tu pedido es de {{$json.monto_total}} bs. Paga escaneando este QR PayPal."
+      },
+      "position": [900, 100],
+      "credentials": { "twilioApi": "Twilio WhatsApp Licoreria" }
+    },
+    {
+      "name": "Registrar Pago y Pedido",
+      "type": "n8n-nodes-base.googleSheets",
+      "parameters": { "sheetId": "<GOOGLE_SHEETS_ID>", "range": "Pedidos!A1:G", "valueData": [/*...*/] }
+    },
+    {
+      "name": "Generar Factura Interna",
+      "type": "n8n-nodes-base.function",
+      "parameters": { "functionCode": "/* Genera XML/JSON de factura, registra en Google Sheets */" }
+    },
+    {
+      "name": "Enviar Factura por WhatsApp",
+      "type": "n8n-nodes-base.twilio",
+      "parameters": { "resource": "message", "operation": "send",
+        "phoneNumber": "={{$json.telefono}}",
+        "message": "Adjuntamos tu factura. ¡Gracias por tu compra!",
+        "mediaUrl": "={{$json.factura_pdf_url}}"
+      },
+      "credentials": { "twilioApi": "Twilio WhatsApp Licoreria" }
+    },
+    {
+      "name": "Comando WhatsApp (Reportes)",
+      "type": "n8n-nodes-base.webhook",
+      "parameters": { "httpMethod": "POST", "path": "comando-wp", "options": {} }
+    },
+    {
+      "name": "Procesar Comando y Consultar Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "parameters": { "sheetId": "<GOOGLE_SHEETS_ID>", "range": "...", "options": {} }
+    },
+    {
+      "name": "Enviar Reporte por WhatsApp",
+      "type": "n8n-nodes-base.twilio",
+      "parameters": { "resource": "message", "operation": "send", "phoneNumber": "={{$json.adminTelefono}}", "message": "Reporte solicitado: {{ $json.resultado }}" },
+      "credentials": { "twilioApi": "Twilio WhatsApp Licoreria" }
+    }
+  ],
+  "connections": { /* conecta cada uno según el flujo */ }
+}
