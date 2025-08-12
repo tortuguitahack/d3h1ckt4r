@@ -1,0 +1,97 @@
+{
+  "name": "Sistema Licorería Elite 100% Automatizado WhatsApp (Base)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "nuevo-pedido",
+        "options": {},
+        "responseMode": "lastNode"
+      },
+      "name": "Webhook Pedido",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [100, 200]
+    },
+    {
+      "parameters": {
+        "sheetId": "<GOOGLE_SHEETS_ID>",
+        "range": "Inventario_Licores!A1:H",
+        "dataPropertyName": "data"
+      },
+      "name": "Leer Inventario Licores",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [300, 200],
+      "credentials": { "googleSheetsOAuth2Api": "Google Sheets Licorería" }
+    },
+    {
+      "parameters": {
+        "sheetId": "<GOOGLE_SHEETS_ID>",
+        "range": "Inventario_Cervezas!A1:F",
+        "dataPropertyName": "data"
+      },
+      "name": "Leer Inventario Cervezas",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [300, 400],
+      "credentials": { "googleSheetsOAuth2Api": "Google Sheets Licorería" }
+    },
+    {
+      "parameters": {
+        "sheetId": "<GOOGLE_SHEETS_ID>",
+        "range": "Clientes!A1:F",
+        "dataPropertyName": "data"
+      },
+      "name": "Leer Clientes",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [300, 600],
+      "credentials": { "googleSheetsOAuth2Api": "Google Sheets Licorería" }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "phoneNumber": "={{$json.telefono}}",
+        "message": "¡Hola {{$json.cliente}}! Tu pedido ha sido registrado. Te informaremos por WhatsApp el estado.",
+        "options": {}
+      },
+      "name": "WhatsApp Notif Pedido",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [700, 250],
+      "credentials": { "twilioApi": "Twilio WhatsApp Licorería" }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "phoneNumber": "={{$json.telefono}}",
+        "message": "¡NOVEDADES! Prueba nuestras promociones esta semana.",
+        "options": {}
+      },
+      "name": "WhatsApp Marketing Promo",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [700, 450],
+      "credentials": { "twilioApi": "Twilio WhatsApp Licorería" }
+    }
+  ],
+  "connections": {
+    "Webhook Pedido": {
+      "main": [
+        [
+          { "node": "Leer Inventario Licores", "type": "main", "index": 0 },
+          { "node": "Leer Inventario Cervezas", "type": "main", "index": 0 },
+          { "node": "Leer Clientes", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Leer Inventario Licores": { "main": [[{ "node": "WhatsApp Notif Pedido", "type": "main", "index": 0 }]] },
+    "Leer Inventario Cervezas": { "main": [[{ "node": "WhatsApp Marketing Promo", "type": "main", "index": 0 }]] }
+  },
+  "active": true,
+  "settings": {},
+  "id": "LicoreriaEliteBaseWhatsApp"
+}
