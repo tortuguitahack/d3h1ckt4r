@@ -1,0 +1,78 @@
+{
+  "name": "Licorería Elite DEMO 12-08-2025",
+  "nodes": [
+    {
+      "parameters": {
+        "sheetId": "GOOGLE_SHEETS_ID",
+        "range": "Inventario_Licores!A1:H",
+        "options": {},
+        "data": [
+          ["WHISKY","JOHNNIE WALKER","JOHNNIE WALKER BLUE LABEL 750 ML x 6",6,3874,23244,5,2],
+          ["WHISKY","JOHNNIE WALKER","BLACK LABEL 12 LITRO x 12",12,1509,18108,7,3],
+          ["GIN","TANQUERAY","TANQUERAY LONDON DRY 700ML x12",12,554,6648,9,3],
+          ["VODKA","SMIRNOFF","SMIRNOFF RED 1 LITRO x 12",12,175,2100,15,6],
+          ["RON","Ferna 1892","Fernet 1892",1,80,80,20,5]
+        ]
+      },
+      "name": "Simular Inventario Licores",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [250,200]
+    },
+    {
+      "parameters": {
+        "sheetId": "GOOGLE_SHEETS_ID",
+        "range": "Inventario_Cervezas!A1:F",
+        "options": {},
+        "data": [
+          ["POTOSINA ENTERA","5PTCP03",620,9,60,15],
+          ["DUNKELBERG BOTELLIN","5PTCC20",355,14,18,7],
+          ["BAVARIA BOTELLIN","5PTCB12",355,7,35,10],
+          ["MALTITA BOTELLIN","5PTM021",355,5,40,12]
+        ]
+      },
+      "name": "Simular Inventario Cervezas",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [250,400]
+    },
+    {
+      "parameters": {
+        "sheetId": "GOOGLE_SHEETS_ID",
+        "range": "Clientes!A1:F",
+        "options": {},
+        "data": [
+          [1,"Ana Gómez","+5215512340001","ana.gomez@mail.com",1,"NUEVO"],
+          [2,"Carlos Ruiz","+5215512340002","carlos.ruiz@mail.com",3,"REGULAR"],
+          [3,"Laura Martínez","+5215512340003","laura.m@mail.com",6,"VIP"]
+        ]
+      },
+      "name": "Simular Clientes",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [250,600]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "phoneNumber": "={{$json[2]}}",
+        "message": "¡Hola {{$json[1]}}! Tu pedido usando productos reales ya está procesado. Detalles en WhatsApp.",
+        "options": {}
+      },
+      "name": "WhatsApp Simulación Pedido Demo",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [700,250],
+      "credentials": {"twilioApi":"Twilio WhatsApp Licorería"}
+    }
+  ],
+  "connections": {
+    "Simular Inventario Licores": { "main": [[{ "node": "WhatsApp Simulación Pedido Demo", "type": "main", "index": 0 }]] },
+    "Simular Inventario Cervezas": { "main": [[{ "node": "WhatsApp Simulación Pedido Demo", "type": "main", "index": 0 }]] },
+    "Simular Clientes": { "main": [[{ "node": "WhatsApp Simulación Pedido Demo", "type": "main", "index": 0 }]] }
+  },
+  "active": true,
+  "settings": {},
+  "id": "LicoreriaEliteDemoWA"
+}
