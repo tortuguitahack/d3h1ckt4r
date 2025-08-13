@@ -1,0 +1,133 @@
+{
+  "name": "Licorería Elite Automatización Demo",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "nuevo-pedido" },
+      "name": "Webhook Nuevo Pedido",
+      "type": "n8n-nodes-base.webhook",
+      "position": [100, 200]
+    },
+    {
+      "parameters": { "sheetId": "<GOOGLE_SHEETS_ID>", "range": "Inventario_Cervezas!A1:F" },
+      "name": "Leer Inventario Cervezas",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [300, 200],
+      "credentials": { "googleSheetsOAuth2Api": "Google Sheets Licorería" }
+    },
+    {
+      "parameters": { "sheetId": "<GOOGLE_SHEETS_ID>", "range": "Inventario_Licores!A1:H" },
+      "name": "Leer Inventario Licores",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [300, 300],
+      "credentials": { "googleSheetsOAuth2Api": "Google Sheets Licorería" }
+    },
+    {
+      "parameters": { "sheetId": "<GOOGLE_SHEETS_ID>", "range": "Clientes!A1:F" },
+      "name": "Leer Clientes",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [300, 400],
+      "credentials": { "googleSheetsOAuth2Api": "Google Sheets Licorería" }
+    },
+    {
+      "parameters": { "sheetId": "<GOOGLE_SHEETS_ID>", "range": "Proveedores!A1:E" },
+      "name": "Leer Proveedores",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [300, 500],
+      "credentials": { "googleSheetsOAuth2Api": "Google Sheets Licorería" }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Calcula monto total pedido con precios\n// Genera link PayPal automático\nconst items = $json.items;\nlet total = 0;\n// busca producto y suma precio\nfor (const i of items) {\n  // Busca en inventario\n  // Simulación: todos productos valen 10 Bs.\n  total += i.cantidad * 10;\n}\nconst paypalLink = 'https://www.paypal.me/tucuenta/' + total;\nreturn [{ json: { total, paypalLink } }];"
+      },
+      "name": "Calcular Total + Generar PayPal Link",
+      "type": "n8n-nodes-base.function",
+      "position": [500, 250]
+    },
+    {
+      "parameters": {
+        "url": "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={{$json.paypalLink}}"
+      },
+      "name": "Generar QR",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [700, 250]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "phoneNumber": "={{$json.telefono}}",
+        "message": "¡Hola {{$json.cliente}}! Total a pagar: {{$json.total}} Bs. Escanea este QR para pagar por PayPal.",
+        "mediaUrl": "={{$node[\"Generar QR\"].json[\"url\"]}}"
+      },
+      "name": "WhatsApp Send QR",
+      "type": "n8n-nodes-base.twilio",
+      "position": [900, 250],
+      "credentials": { "twilioApi": "Twilio WhatsApp Licorería" }
+    },
+    {
+      "parameters": { "sheetId": "<GOOGLE_SHEETS_ID>", "range": "Facturacion!A1:F" },
+      "name": "Generar Factura Interna",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [900, 450],
+      "credentials": { "googleSheetsOAuth2Api": "Google Sheets Licorería" }
+    },
+    {
+      "parameters": {
+        "url": "https://api-sfv.simulacion.bo/facturar",
+        "options": { "body": { "cliente": "={{$json.cliente}}", "detalle": "={{$json.items}}", "total": "={{$json.total}}" } }
+      },
+      "name": "Generar Factura SFV",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [900, 550]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "phoneNumber": "={{$json.telefono}}",
+        "message": "Tu compra fue facturada y el pago registrado. ¡Licorería Elite siempre a tu servicio!",
+        "options": {}
+      },
+      "name": "WhatsApp Confirmación",
+      "type": "n8n-nodes-base.twilio",
+      "position": [1100, 250],
+      "credentials": { "twilioApi": "Twilio WhatsApp Licorería" }
+    },
+    {
+      "parameters": { "httpMethod": "POST", "path": "comando-whatsapp" },
+      "name": "Webhook Comando WhatsApp",
+      "type": "n8n-nodes-base.webhook",
+      "position": [100, 800]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Responde reportes/admin por comando\nif ($json.comando === 'reporte') {\n  return [{ json: { reporte: 'Ventas hoy: 1000 Bs.' } }];\n} else if ($json.comando === 'arqueo') {\n  return [{ json: { reporte: 'Arqueo: Stock OK, Caja Ok.' } }];\n} else { return [{ json: { reporte: 'Comando no reconocido.' } }]; }"
+      },
+      "name": "Gestion Comandos WhatsApp",
+      "type": "n8n-nodes-base.function",
+      "position": [300, 800]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "phoneNumber": "={{$json.telefono}}",
+        "message": "={{$json.reporte}}",
+        "options": {}
+      },
+      "name": "WhatsApp Send reporte",
+      "type": "n8n-nodes-base.twilio",
+      "position": [500, 800],
+      "credentials": { "twilioApi": "Twilio WhatsApp Licorería" }
+    }
+  ],
+  "connections": {
+    "Webhook Nuevo Pedido": { "main": [[{ "node": "Leer Inventario Cervezas", "type": "main", "index": 0 }, { "node": "Leer Inventario Licores", "type": "main", "index": 0 }]] },
+    "Leer Inventario Cervezas": { "main": [[{ "node": "Calcular Total + Generar PayPal Link", "type": "main", "index": 0 }]] },
+    "Calcular Total + Generar PayPal Link": { "main": [[{ "node": "Generar QR", "type": "main", "index": 0 }]] },
+    "Generar QR": { "main": [[{ "node": "WhatsApp Send QR", "type": "main", "index": 0 }, { "node": "Generar Factura Interna", "type": "main", "index": 0 }, { "node": "Generar Factura SFV", "type": "main", "index": 0 }]] },
+    "WhatsApp Send QR": { "main": [[{ "node": "WhatsApp Confirmación", "type": "main", "index": 0 }]] },
+    "Webhook Comando WhatsApp": { "main": [[{ "node": "Gestion Comandos WhatsApp", "type": "main", "index": 0 }]] },
+    "Gestion Comandos WhatsApp": { "main": [[{ "node": "WhatsApp Send reporte", "type": "main", "index": 0 }]] }
+  }
+}
