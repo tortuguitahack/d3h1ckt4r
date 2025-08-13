@@ -1,0 +1,17 @@
+{
+  "tracking_id": "diegoedgard02-20",
+  "amazon": {
+    "OneLink": true,
+    "target_countries": ["US","UK","DE","FR","ES","IT","JP","CA","MX","AU"]
+  },
+  "social_networks": ["X","Facebook","Instagram","Pinterest","Telegram","TikTok","YouTube","Threads","Reddit","Medium"],
+  "content_formats": ["text","audio","video"],
+  "workflow": [
+    {"step": 1, "description": "Crear y vincular cuentas afiliadas internacionales en OneLink", "tool": "Amazon Associates", "details": "Registrar cuentas en EE.UU., UK, ES, DE, IT, FR, JP, CA, MX, AU con ID diegoedgard02-201112"},
+    {"step": 2, "description": "Planificar contenido y calendario editorial", "tool": ["Google Sheets","Airtable"], "details": "Definir temas, hashtags y calendario de publicaciones para cada red social"},
+    {"step": 3, "description": "Generar texto, imágenes y multimedia con IA y recursos libres", "tool": ["OpenRouter (GPT)","Unsplash/Pexels","Notegpt/ElevenLabs"], "details": "Crear descripciones, guiones y voiceovers con IA; usar fotos de modelos libres para anuncios (p.ej. mujer con productos)13"},
+    {"step": 4, "description": "Programar y publicar en redes sociales", "tool": ["Buffer","n8n","IFTTT"], "details": "Agendar posts/texto/video según calendario; por ejemplo, usar Buffer free (3 cuentas, 10 posts cada una)14"},
+    {"step": 5, "description": "Crear landing page con enlace afiliado unificado", "tool": "Carrd o alternativa gratuita", "details": "Insertar el enlace de Amazon con el ID diegoedgard02-20 usando OneLink; incluir opciones de idioma/región"},
+    {"step": 6, "description": "Analizar resultados y optimizar", "tool": ["Google Analytics","Amazon Reports"], "details": "Monitorear clics y ventas por país, ajustar palabras clave, contenido y horarios"}
+  ]
+}
