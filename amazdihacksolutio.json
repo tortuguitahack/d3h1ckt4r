@@ -1,0 +1,395 @@
+{
+  "meta": {
+    "instanceId": "amazon_affiliate_master_v2.1"
+  },
+  "nodes": [
+    {
+      "name": "Webhook Lead Capture",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-capture",
+        "responseCode": 200,
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*",
+          "rawBody": false
+        }
+      },
+      "position": [200, 300]
+    },
+    {
+      "name": "Validate & Enrich Lead Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "email": "={{$json.email ? $json.email.trim().toLowerCase() : ''}}",
+          "interest": "={{$json.interest ? $json.interest.trim() : ''}}",
+          "country": "={{$json.country ? $json.country.trim().toUpperCase() : 'US'}}",
+          "language": "={{$json.language || 'en'}}",
+          "urgencyLevel": "={{$json.urgency || 'medium'}}",
+          "psychProfile": "={{$json.personality || 'analytical'}}",
+          "timestamp": "={{$now}}",
+          "leadId": "={{$json.email}}_{{$now}}"
+        }
+      },
+      "position": [400, 300]
+    },
+    {
+      "name": "Country & Language Router",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{$json.country}}",
+        "rules": {
+          "rules": [
+            {"operation": "equal", "value2": "US", "output": 0},
+            {"operation": "equal", "value2": "UK", "output": 1},
+            {"operation": "equal", "value2": "DE", "output": 2},
+            {"operation": "equal", "value2": "FR", "output": 3},
+            {"operation": "equal", "value2": "ES", "output": 4},
+            {"operation": "equal", "value2": "IT", "output": 5},
+            {"operation": "equal", "value2": "CA", "output": 6},
+            {"operation": "equal", "value2": "AU", "output": 7},
+            {"operation": "equal", "value2": "JP", "output": 8},
+            {"operation": "equal", "value2": "IN", "output": 9}
+          ]
+        }
+      },
+      "position": [600, 300]
+    },
+    {
+      "name": "Set Country-Specific Variables",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "parameters": {
+        "keepOnlySet": false,
+        "values": {
+          "amazonDomain": "={{$json.country === 'US' ? 'amazon.com' : $json.country === 'UK' ? 'amazon.co.uk' : $json.country === 'DE' ? 'amazon.de' : $json.country === 'FR' ? 'amazon.fr' : $json.country === 'ES' ? 'amazon.es' : $json.country === 'IT' ? 'amazon.it' : $json.country === 'CA' ? 'amazon.ca' : $json.country === 'AU' ? 'amazon.com.au' : $json.country === 'JP' ? 'amazon.co.jp' : $json.country === 'IN' ? 'amazon.in' : 'amazon.com'}}",
+          "affiliateTag": "diegoedgard02-20",
+          "currency": "={{$json.country === 'US' ? '$' : $json.country === 'UK' ? '£' : ['DE','FR','ES','IT'].includes($json.country) ? '€' : $json.country === 'CA' ? 'CAD$' : $json.country === 'AU' ? 'AUD$' : $json.country === 'JP' ? '¥' : $json.country === 'IN' ? '₹' : '$'}}",
+          "urgencyPhrases": "={{$json.language === 'es' ? ['¡Solo por HOY!','¡Últimas unidades!','¡Oferta LIMITADA!'] : $json.language === 'fr' ? ['Seulement AUJOURD\\'HUI!','Dernières unités!','Offre LIMITÉE!'] : $json.language === 'de' ? ['Nur HEUTE!','Letzte Einheiten!','LIMITIERTES Angebot!'] : ['Only TODAY!','Last units!','LIMITED offer!']}}"
+        }
+      },
+      "position": [800, 300]
+    },
+    {
+      "name": "AI Psychological Profiler",
+      "type": "n8n-nodes-base.openai",
+      "typeVersion": 1,
+      "parameters": {
+        "model": "gpt-4",
+        "messages": {
+          "messageType": "json",
+          "jsonMessages": [
+            {
+              "role": "system",
+              "content": "Eres un experto en psicología del consumidor y neuro-marketing. Analiza el perfil del lead y determina: 1) Triggers psicológicos principales, 2) Estilo de comunicación óptimo, 3) Nivel de urgencia recomendado, 4) Productos Amazon más persuasivos para este perfil."
+            },
+            {
+              "role": "user",
+              "content": "Perfil del lead: Interés={{$json.interest}}, País={{$json.country}}, Personalidad={{$json.psychProfile}}, Urgencia={{$json.urgencyLevel}}. Genera un análisis psicológico detallado para maximizar conversiones."
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 800
+        }
+      },
+      "position": [1000, 300]
+    },
+    {
+      "name": "Hypnotic Content Generator",
+      "type": "n8n-nodes-base.openai",
+      "typeVersion": 1,
+      "parameters": {
+        "model": "gpt-4",
+        "messages": {
+          "messageType": "json",
+          "jsonMessages": [
+            {
+              "role": "system",
+              "content": "Eres un maestro en hipnosis conversacional y copywriting persuasivo. Utiliza técnicas de: 1) Pacing y Leading, 2) Anclaje emocional, 3) Patrones de lenguaje hipnótico, 4) Triggers psicológicos, 5) Presuposiciones, 6) Comandos embebidos. Crea contenido que genere ACCIÓN INMEDIATA."
+            },
+            {
+              "role": "user",
+              "content": "Crea un email hipnótico sobre {{$json.interest}} para {{$json.country}}. Usa: Análisis psicológico: {{$('AI Psychological Profiler').item.json.choices[0].message.content}}. Incluye: Storytelling emocional, Escasez, Urgencia social, Autoridad, Reciprocidad. Longitud: 800-1200 palabras. Idioma: {{$json.language}}."
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.8,
+          "maxTokens": 1500
+        }
+      },
+      "position": [1200, 300]
+    },
+    {
+      "name": "Product Research & Selection",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.rainforestapi.com/request",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "rainforestApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {"name": "api_key", "value": "={{$env.RAINFOREST_API_KEY}}"},
+            {"name": "type", "value": "search"},
+            {"name": "amazon_domain", "value": "={{$json.amazonDomain}}"},
+            {"name": "search_term", "value": "={{$json.interest}}"},
+            {"name": "sort_by", "value": "relevance"},
+            {"name": "max_page", "value": "1"}
+          ]
+        }
+      },
+      "position": [1400, 300]
+    },
+    {
+      "name": "Smart Product Selector",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Selector inteligente de productos basado en conversiones\nconst products = $input.all()[0]?.json?.search_results || [];\nconst affiliateTag = $('Set Country-Specific Variables').first().json.affiliateTag;\nconst amazonDomain = $('Set Country-Specific Variables').first().json.amazonDomain;\n\nconst scoredProducts = products.map(product => {\n  let score = 0;\n  if (product.rating) score += (product.rating / 5) * 40;\n  if (product.ratings_total) score += Math.min(product.ratings_total / 1000, 1) * 30;\n  if (product.price?.value) {\n    const price = product.price.value;\n    if (price >= 20 && price <= 200) score += 20;\n    else if (price > 200 && price <= 500) score += 15;\n    else score += 5;\n  }\n  if (product.is_prime) score += 5;\n  if (product.is_amazon_choice) score += 5;\n  return {\n    ...product,\n    conversionScore: score,\n    affiliateUrl: `https://${amazonDomain}/dp/${product.asin}?tag=${affiliateTag}`\n  };\n});\n\nconst topProducts = scoredProducts.sort((a, b) => b.conversionScore - a.conversionScore).slice(0, 5);\nreturn topProducts.map(product => ({ json: product }));"
+      },
+      "position": [1600, 300]
+    },
+    {
+      "name": "Visual Content Creator",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.canva.com/v1/designs",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "canvaApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "Bearer {{$env.CANVA_API_TOKEN}}"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {"name": "design_type", "value": "social-media-post"},
+            {"name": "title", "value": "={{$json.title || 'Amazon Affiliate Post'}} - {{$('Set Country-Specific Variables').first().json.urgencyPhrases[0]}}"},
+            {"name": "width", "value": 1080},
+            {"name": "height", "value": 1080}
+          ]
+        }
+      },
+      "position": [1800, 300]
+    },
+    {
+      "name": "Multi-Platform Publisher",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "parameters": {
+        "functionCode": "// Publicador multi-plataforma inteligente\nconst platforms = {\n  facebook: {endpoint: 'https://graph.facebook.com/v18.0/me/feed', token: $env.FACEBOOK_PAGE_TOKEN, format: 'long_form'},\n  instagram: {endpoint: 'https://graph.facebook.com/v18.0/me/media', token: $env.INSTAGRAM_TOKEN, format: 'visual_focused'},\n  twitter: {endpoint: 'https://api.twitter.com/2/tweets', token: $env.TWITTER_BEARER_TOKEN, format: 'thread'},\n  linkedin: {endpoint: 'https://api.linkedin.com/v2/shares', token: $env.LINKEDIN_TOKEN, format: 'professional'},\n  tiktok: {endpoint: 'https://open-api.tiktok.com/share/video/upload', token: $env.TIKTOK_TOKEN, format: 'short_video'},\n  pinterest: {endpoint: 'https://api.pinterest.com/v5/pins', token: $env.PINTEREST_TOKEN, format: 'visual_story'},\n  youtube: {endpoint: 'https://www.googleapis.com/youtube/v3/videos', token: $env.YOUTUBE_TOKEN, format: 'long_video'},\n  reddit: {endpoint: 'https://oauth.reddit.com/api/submit', token: $env.REDDIT_TOKEN, format: 'discussion'},\n  telegram: {endpoint: `https://api.telegram.org/bot${$env.TELEGRAM_BOT_TOKEN}/sendMessage`, format: 'instant_message'},\n  whatsapp: {endpoint: `https://graph.facebook.com/v18.0/${$env.WHATSAPP_PHONE_ID}/messages`, token: $env.WHATSAPP_TOKEN, format: 'personal_message'}\n};\n\nconst content = $('Hypnotic Content Generator').first().json.choices[0].message.content;\nconst productData = $('Smart Product Selector').first().json;\n\nconst adaptedContent = Object.keys(platforms).map(platform => {\n  let adaptedText = content;\n  switch(platform) {\n    case 'twitter':\n      adaptedText = content.substring(0, 250) + '... 🧵👇';\n      break;\n    case 'instagram':\n      adaptedText = content + '\\n\\n#affiliate #amazon #deals #shopping';\n      break;\n    case 'linkedin':\n      adaptedText = 'Professional insight: ' + content;\n      break;\n    case 'tiktok':\n      adaptedText = 'Watch this! ' + content.substring(0, 150);\n      break;\n  }\n  return {\n    platform,\n    content: adaptedText,\n    productUrl: productData.affiliateUrl,\n    config: platforms[platform]\n  };\n});\n\nreturn adaptedContent.map(item => ({ json: item }));"
+      },
+      "position": [2000, 300]
+    },
+    {
+      "name": "Advanced Analytics Tracker",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "parameters": {
+        "operation": "append",
+        "documentId": "={{$env.GOOGLE_SHEETS_ID}}",
+        "sheetName": "Amazon_Affiliate_Analytics",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "leadId": "={{$json.leadId}}",
+            "email": "={{$json.email}}",
+            "country": "={{$json.country}}",
+            "interest": "={{$json.interest}}",
+            "psychProfile": "={{$json.psychProfile}}",
+            "productAsin": "={{$('Smart Product Selector').first().json.asin}}",
+            "productTitle": "={{$('Smart Product Selector').first().json.title}}",
+            "productPrice": "={{$('Smart Product Selector').first().json.price?.value}}",
+            "affiliateUrl": "={{$('Smart Product Selector').first().json.affiliateUrl}}",
+            "conversionScore": "={{$('Smart Product Selector').first().json.conversionScore}}",
+            "campaignDate": "={{$now}}",
+            "emailSent": "pending",
+            "socialPosted": "pending",
+            "status": "active"
+          }
+        }
+      },
+      "position": [2200, 300]
+    },
+    {
+      "name": "Hypnotic Email Sender",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "parameters": {
+        "fromEmail": "={{$env.SENDER_EMAIL}}",
+        "toEmail": "={{$json.email}}",
+        "subject": "={{$('Set Country-Specific Variables').first().json.urgencyPhrases[0]}} - {{$json.interest}} {{$('Set Country-Specific Variables').first().json.currency}}{{$('Smart Product Selector').first().json.price?.value}}",
+        "message": "={{$('Hypnotic Content Generator').first().json.choices[0].message.content}}\n\nENLACE EXCLUSIVO: {{$('Smart Product Selector').first().json.affiliateUrl}}\n\nEsta oferta expira en 24 horas\n\nSolo para ti: {{$json.email}}",
+        "options": {
+          "allowUnauthorizedCerts": false,
+          "replyTo": "={{$env.SENDER_EMAIL}}",
+          "priority": "high"
+        }
+      },
+      "position": [2400, 300]
+    },
+    {
+      "name": "Conversion Tracker",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "conversion-tracking",
+        "responseCode": 200,
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "position": [2600, 500]
+    },
+    {
+      "name": "Update Conversion Stats",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "parameters": {
+        "operation": "update",
+        "documentId": "={{$env.GOOGLE_SHEETS_ID}}",
+        "sheetName": "Amazon_Affiliate_Analytics",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "conversionDate": "={{$now}}",
+            "conversionValue": "={{$json.amount}}",
+            "commission": "={{$json.amount * 0.08}}",
+            "status": "converted"
+          }
+        },
+        "options": {
+          "lookupColumn": "leadId",
+          "lookupValue": "={{$json.leadId}}"
+        }
+      },
+      "position": [2800, 500]
+    },
+    {
+      "name": "AI Follow-up Sequencer",
+      "type": "n8n-nodes-base.schedule",
+      "typeVersion": 1,
+      "parameters": {
+        "trigger": "interval",
+        "intervalSize": 4,
+        "intervalUnit": "hours"
+      },
+      "position": [200, 700]
+    },
+    {
+      "name": "Follow-up Content Generator",
+      "type": "n8n-nodes-base.openai",
+      "typeVersion": 1,
+      "parameters": {
+        "model": "gpt-4",
+        "messages": {
+          "messageType": "json",
+          "jsonMessages": [
+            {
+              "role": "system",
+              "content": "Eres un experto en secuencias de follow-up hipnóticas. Crea contenido de seguimiento que: 1) Aumenta la urgencia gradualmente, 2) Usa técnicas de compromiso y consistencia, 3) Aplica prueba social, 4) Genera FOMO extremo. Cada mensaje debe ser más persuasivo que el anterior."
+            },
+            {
+              "role": "user",
+              "content": "Crea un follow-up para leads que no convirtieron en las primeras 4 horas. Tema: {{$json.interest}}. Aplica máxima persuasión psicológica. Incluye: Testimonio ficticio pero creíble, escasez extrema, autoridad, reciprocidad avanzada."
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.9,
+          "maxTokens": 1000
+        }
+      },
+      "position": [400, 700]
+    },
+    {
+      "name": "Performance Optimizer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Optimizador de performance basado en IA\nconst analytics = $input.all();\nconst conversions = analytics.filter(item => item.json.status === 'converted');\nconst totalLeads = analytics.length;\nconst conversionRate = totalLeads === 0 ? 0 : (conversions.length / totalLeads) * 100;\n\nconst topCountries = {}, topInterests = {}, topPsychProfiles = {};\nconversions.forEach(conversion => {\n  const {country, interest, psychProfile} = conversion.json;\n  topCountries[country] = (topCountries[country] || 0) + 1;\n  topInterests[interest] = (topInterests[interest] || 0) + 1;\n  topPsychProfiles[psychProfile] = (topPsychProfiles[psychProfile] || 0) + 1;\n});\nconst recommendations = {\n  bestCountries: Object.keys(topCountries).sort((a,b) => topCountries[b] - topCountries[a]).slice(0,3),\n  bestInterests: Object.keys(topInterests).sort((a,b) => topInterests[b] - topInterests[a]).slice(0,3),\n  bestPsychProfiles: Object.keys(topPsychProfiles).sort((a,b) => topPsychProfiles[b] - topPsychProfiles[a]).slice(0,3),\n  conversionRate,\n  totalRevenue: conversions.reduce((sum, c) => sum + (Number(c.json.conversionValue) || 0), 0),\n  avgOrderValue: conversions.length ? conversions.reduce((sum, c) => sum + (Number(c.json.conversionValue) || 0), 0) / conversions.length : 0,\n  optimization: conversionRate < 5 ? 'CRITICAL - Revisar copy y targeting' : conversionRate < 15 ? 'MODERATE - Optimizar headlines' : 'EXCELLENT - Escalar campaña'\n};\nreturn [{ json: recommendations }];"
+      },
+      "position": [600, 700]
+    }
+  ],
+  "connections": {
+    "Webhook Lead Capture": {
+      "main": [[{"node": "Validate & Enrich Lead Data", "type": "main", "index": 0}]]
+    },
+    "Validate & Enrich Lead Data": {
+      "main": [[{"node": "Country & Language Router", "type": "main", "index": 0}]]
+    },
+    "Country & Language Router": {
+      "main": [
+        [{"node": "Set Country-Specific Variables", "type": "main", "index": 0}],
+        [{"node": "Set Country-Specific Variables", "type": "main", "index": 0}],
+        [{"node": "Set Country-Specific Variables", "type": "main", "index": 0}],
+        [{"node": "Set Country-Specific Variables", "type": "main", "index": 0}],
+        [{"node": "Set Country-Specific Variables", "type": "main", "index": 0}],
+        [{"node": "Set Country-Specific Variables", "type": "main", "index": 0}],
+        [{"node": "Set Country-Specific Variables", "type": "main", "index": 0}],
+        [{"node": "Set Country-Specific Variables", "type": "main", "index": 0}],
+        [{"node": "Set Country-Specific Variables", "type": "main", "index": 0}],
+        [{"node": "Set Country-Specific Variables", "type": "main", "index": 0}]
+      ]
+    },
+    "Set Country-Specific Variables": {
+      "main": [[{"node": "AI Psychological Profiler", "type": "main", "index": 0}]]
+    },
+    "AI Psychological Profiler": {
+      "main": [[{"node": "Hypnotic Content Generator", "type": "main", "index": 0}]]
+    },
+    "Hypnotic Content Generator": {
+      "main": [[{"node": "Product Research & Selection", "type": "main", "index": 0}]]
+    },
+    "Product Research & Selection": {
+      "main": [[{"node": "Smart Product Selector", "type": "main", "index": 0}]]
+    },
+    "Smart Product Selector": {
+      "main": [[{"node": "Visual Content Creator", "type": "main", "index": 0}]]
+    },
+    "Visual Content Creator": {
+      "main": [[{"node": "Multi-Platform Publisher", "type": "main", "index": 0}]]
+    },
+    "Multi-Platform Publisher": {
+      "main": [[{"node": "Advanced Analytics Tracker", "type": "main", "index": 0}]]
+    },
+    "Advanced Analytics Tracker": {
+      "main": [[{"node": "Hypnotic Email Sender", "type": "main", "index": 0}]]
+    },
+    "Conversion Tracker": {
+      "main": [[{"node": "Update Conversion Stats", "type": "main", "index": 0}]]
+    },
+    "AI Follow-up Sequencer": {
+      "main": [[{"node": "Follow-up Content Generator", "type": "main", "index": 0}]]
+    },
+    "Follow-up Content Generator": {
+      "main": [[{"node": "Performance Optimizer", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "timezone": "UTC",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}
