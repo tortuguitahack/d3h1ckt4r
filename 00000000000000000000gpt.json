@@ -149,8 +149,7 @@
         "sendHeaders": true,
         "headerParametersJson": "={\"x-api-key\":\"{{$env.SHOTSTACK_API_KEY}}\",\"Content-Type\":\"application/json\"}",
         "bodyParametersJson": "={\n  \"timeline\": {\n    \"soundtrack\": {\"src\": \"data:audio/mp3;base64,{{$binary.data? $binary.data.toString('base64'):''}}\"},\n    \"tracks\": [{\"clips\": [\n      {\"asset\": {\"type\":\"title\",\"text\":\"{{$node[\\\"LocalizeLinks\\\"].json.title || 'Producto destacado'}}\",\"style\":\"minimal\"},\"start\":0,\"length\":2},\n      {\"asset\": {\"type\":\"image\",\"src\":\"{{$node[\\\"SelectImage\\\"].json.image_url}}\"},\"start\":0,\"length\":15},\n      {\"asset\": {\"type\":\"title\",\"text\":\"Compra ahora\",\"style\":\"minimal\"},\"start\":12,\"length\":3}\n    ]}]\n  },\n  \"output\": {\"format\":\"mp4\",\"resolution\":\"sd\"}\n}"
-      },
-      "notesInFlow": true
+      }
     },
     {
       "id": "TelegramPhoto",
@@ -217,9 +216,6 @@
       },
       "credentials": { "googleApi": { "id": "__CRED_GOOGLE__", "name": "Google API" } }
     },
-
-    /* ===== OPTIONAL PUBLISHERS (enable when you set credentials) ===== */
-
     {
       "id": "YouTubeUpload",
       "name": "Publish YouTube (Video) [Optional]",
