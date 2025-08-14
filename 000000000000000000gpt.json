@@ -232,9 +232,6 @@
       },
       "credentials": { "mediumApi": { "id": "__CRED_MEDIUM__", "name": "Medium API" } }
     },
-
-    /* ===== Optional publishers (enable with tokens) ===== */
-
     {
       "id": "youtube",
       "name": "Publish YouTube [Optional]",
@@ -352,9 +349,6 @@
       },
       "disabled": true
     },
-
-    /* ===== Logging & Marking ===== */
-
     {
       "id": "airtable_log",
       "name": "Log to Airtable",
@@ -430,4 +424,3 @@
     "Log to Airtable": { "main": [[{ "node": "Mark as Posted (Sheets)", "type": "main", "index": 0 }]] }
   },
   "settings": { "executionOrder": "v1" }
-}
