@@ -1,0 +1,433 @@
+{
+  "name": "Amazon_Affiliates_Global_HyperPublisher_v2",
+  "nodes": [
+    {
+      "id": "cron",
+      "name": "Start (Cron @hourly)",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [120, -80],
+      "parameters": { "triggerTimes": { "item": [{ "mode": "everyHour" }] } }
+    },
+    {
+      "id": "read_sheets",
+      "name": "Read Products (Google Sheets)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [320, -80],
+      "parameters": {
+        "operation": "read",
+        "sheetId": "1dOorilH3_wTs39Fdo01OHppmHa-tO27DYQDZZ0sXdSY",
+        "range": "Products!A:G",
+        "options": { "useFirstRowAsHeader": true, "valueRenderMode": "UNFORMATTED_VALUE" }
+      },
+      "credentials": { "googleApi": { "id": "__CRED_GOOGLE__", "name": "Google API" } }
+    },
+    {
+      "id": "filter_unposted",
+      "name": "Filter Not Posted",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [520, -80],
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            { "value1": "={{!['Sí','YES','Yes','si','SI'].includes(($json.posted||'').toString())}}" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "enrich_missing",
+      "name": "Enrich Missing (Apify Amazon, optional)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [720, -200],
+      "parameters": {
+        "url": "https://api.apify.com/v2/acts/apify~amazon-scraper/run-sync-get-dataset-items",
+        "method": "POST",
+        "jsonParameters": true,
+        "sendQuery": true,
+        "qs": { "token": "={{$env.APIFY_TOKEN}}" },
+        "bodyParametersJson": "={\"search\": [{{$json.asin? '\"'+$json.asin+'\"' : '\"\"'}}], \"maxItems\": 1 }"
+      },
+      "notesInFlow": true
+    },
+    {
+      "id": "merge_enrich",
+      "name": "Merge Enrichment",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [920, -200],
+      "parameters": {
+        "functionCode": "const src = items[0].json; const enr = items[1]?.json?.[0]||{};\nconst title = src.title || enr.title || '';\nconst image_url = src.image_url || enr.imageUrl || '';\nconst price = src.price || enr.price || '';\nreturn [{...src, title, image_url, price}];"
+      }
+    },
+    {
+      "id": "branch_enrich",
+      "name": "IF Need Enrichment",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [720, -80],
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            { "value1": "={{!$json.title || !$json.image_url}}" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "build_links",
+      "name": "Build Localized Links (10 Countries)",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [920, -80],
+      "parameters": {
+        "functionCode": "const tag='diegoedgard02-20';\nconst asin = ($json.asin||'').trim();\nconst base = ($json.base_url||'').trim();\nconst mkts=[\n {cc:'US',tld:'com',lang:'en-US',tts:'en-us',voice:'Linda'},\n {cc:'UK',tld:'co.uk',lang:'en-GB',tts:'en-gb',voice:'Amy'},\n {cc:'DE',tld:'de',lang:'de-DE',tts:'de-de',voice:'Clara'},\n {cc:'FR',tld:'fr',lang:'fr-FR',tts:'fr-fr',voice:'Bette'},\n {cc:'ES',tld:'es',lang:'es-ES',tts:'es-es',voice:'Isabella'},\n {cc:'IT',tld:'it',lang:'it-IT',tts:'it-it',voice:'Chiara'},\n {cc:'JP',tld:'co.jp',lang:'ja-JP',tts:'ja-jp',voice:'Haruka'},\n {cc:'CA',tld:'ca',lang:'en-CA',tts:'en-us',voice:'Linda'},\n {cc:'MX',tld:'com.mx',lang:'es-MX',tts:'es-mx',voice:'Isabella'},\n {cc:'AU',tld:'com.au',lang:'en-AU',tts:'en-au',voice:'Olivia'}\n];\nfunction genUrl(tld){\n  if(base && base.includes('amazon.')){ const u=new URL(base); u.searchParams.set('tag',tag); return u.toString(); }\n  if(!asin) return null; return `https://www.amazon.${tld}/dp/${asin}?tag=${tag}`;\n}\nconst loc = mkts.map(m=>({ ...m, url: genUrl(m.tld)})).filter(x=>!!x.url);\nreturn [{...$json, localized: loc}];"
+      }
+    },
+    {
+      "id": "explode_by_country",
+      "name": "Explode by Country",
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 1,
+      "position": [1120, -80],
+      "parameters": {
+        "operation": "splitOut",
+        "propertyName": "localized"
+      }
+    },
+    {
+      "id": "copy_llm",
+      "name": "Generate Copy per Country (OpenRouter)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1320, -80],
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "method": "POST",
+        "jsonParameters": true,
+        "options": { "timeout": 90000 },
+        "sendHeaders": true,
+        "headerParametersJson": "={\"Authorization\":\"Bearer {{$env.OPENROUTER_API_KEY}}\",\"HTTP-Referer\":\"{{$env.SITE_URL||'https://atechany.com'}}\",\"X-Title\":\"n8n-Amazon-Affiliates\"}",
+        "bodyParametersJson": "={\n  \"model\": \"{{$env.OPENROUTER_MODEL||'anthropic/claude-3-haiku'}}\",\n  \"temperature\": 0.7,\n  \"messages\": [\n    {\"role\":\"system\",\"content\":\"Eres copywriter senior internacional. Escribe en {{ $json.lang }}. Usa AIDA breve, gatillos de atención sensorial (VAK) y claridad de beneficios. No exageres ni prometas resultados imposibles. Devuelve JSON compacto con: titles[3], text_aida, hashtags[5], ctas[3], reddit_snippet, pinterest_desc, video_script_15s.\"},\n    {\"role\":\"user\",\"content\":\"Título base: {{$node['build_links'].json.title||''}}\\nPaís: {{$json.cc}}\\nEnlace: {{$json.url}}\\nCategoría: {{$node['build_links'].json.category||''}}\\nPrecio: {{$node['build_links'].json.price||''}}\"}\n  ]\n}"
+      }
+    },
+    {
+      "id": "parse_copy",
+      "name": "Parse Copy JSON",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [1520, -80],
+      "parameters": {
+        "functionCode": "const c = $json.choices?.[0]?.message?.content || '{}';\nlet data={}; try{ data=JSON.parse(c); }catch(e){ data={ titles:[], text_aida:c, hashtags:[], ctas:[], reddit_snippet:c, pinterest_desc:c, video_script_15s:c}; }\nreturn [{ country:$node['explode_by_country'].json.cc, url:$node['explode_by_country'].json.url, lang:$node['explode_by_country'].json.lang, tts:$node['explode_by_country'].json.tts, voice:$node['explode_by_country'].json.voice, copy:data }];"
+      }
+    },
+    {
+      "id": "find_image",
+      "name": "Find Image (Pexels)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1720, -80],
+      "parameters": {
+        "url": "https://api.pexels.com/v1/search",
+        "method": "GET",
+        "sendQuery": true,
+        "qs": { "query": "woman presenting {{$node['build_links'].json.title||'product'}} studio", "per_page": 1, "orientation": "landscape" },
+        "sendHeaders": true,
+        "headerParametersJson": "={\"Authorization\":\"{{$env.PEXELS_API_KEY}}\"}"
+      }
+    },
+    {
+      "id": "select_image",
+      "name": "Select Image URL",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [1920, -80],
+      "parameters": {
+        "functionCode": "const p=$json.photos||[]; const img=p[0]?.src?.large || p[0]?.src?.original || '';\nreturn [{ image_url: img }];"
+      }
+    },
+    {
+      "id": "tts",
+      "name": "TTS (VoiceRSS)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2120, -80],
+      "parameters": {
+        "url": "https://api.voicerss.org/",
+        "method": "GET",
+        "responseFormat": "file",
+        "sendQuery": true,
+        "qs": {
+          "key": "={{$env.VOICERSS_API_KEY}}",
+          "hl": "={{$node['parse_copy'].json.tts}}",
+          "v": "={{$node['parse_copy'].json.voice}}",
+          "src": "={{$node['parse_copy'].json.copy.video_script_15s || $node['parse_copy'].json.copy.text_aida}}",
+          "r": "0",
+          "c": "MP3",
+          "f": "44khz_16bit_stereo"
+        }
+      }
+    },
+    {
+      "id": "assemble_video",
+      "name": "Assemble Short Video (Shotstack) [Optional]",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2320, -80],
+      "parameters": {
+        "url": "https://api.shotstack.io/stage/render",
+        "method": "POST",
+        "jsonParameters": true,
+        "sendHeaders": true,
+        "headerParametersJson": "={\"x-api-key\":\"{{$env.SHOTSTACK_API_KEY}}\",\"Content-Type\":\"application/json\"}",
+        "bodyParametersJson": "={\n  \"timeline\": {\n    \"soundtrack\": {\"src\": \"{{$binary.data? 'data:audio/mp3;base64,'+$binary.data.toString('base64'):''}}\"},\n    \"tracks\": [{\"clips\": [\n      {\"asset\": {\"type\":\"title\",\"text\":\"{{$node['build_links'].json.title || 'Producto Amazon'}}\",\"style\":\"minimal\"},\"start\":0,\"length\":2},\n      {\"asset\": {\"type\":\"image\",\"src\":\"{{$node['select_image'].json.image_url}}\"},\"start\":0,\"length\":15},\n      {\"asset\": {\"type\":\"title\",\"text\":\"Compra ahora\",\"style\":\"minimal\"},\"start\":12,\"length\":3}\n    ]}]\n  },\n  \"output\": {\"format\":\"mp4\",\"resolution\":\"sd\"}\n}"
+      }
+    },
+    {
+      "id": "telegram",
+      "name": "Publish Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [2520, -240],
+      "parameters": {
+        "operation": "sendPhoto",
+        "chatId": "={{$env.TELEGRAM_CHAT_ID}}",
+        "binaryProperty": "data",
+        "additionalFields": {
+          "caption": "={{$node['parse_copy'].json.copy.text_aida + '\\n\\n' + $node['parse_copy'].json.url}}",
+          "disableNotification": true
+        }
+      },
+      "credentials": { "telegramApi": { "id": "__CRED_TELEGRAM__", "name": "Telegram Bot" } }
+    },
+    {
+      "id": "reddit",
+      "name": "Publish Reddit",
+      "type": "n8n-nodes-base.reddit",
+      "typeVersion": 2,
+      "position": [2520, -80],
+      "parameters": {
+        "operation": "createPost",
+        "sr": "={{$env.REDDIT_SUBREDDIT}}",
+        "title": "={{($node['build_links'].json.title||'Producto Amazon') + ' [' + $node['parse_copy'].json.country + ']'}}",
+        "text": "={{$node['parse_copy'].json.copy.reddit_snippet + '\\n\\n' + $node['parse_copy'].json.url}}"
+      },
+      "credentials": { "redditOAuth2Api": { "id": "__CRED_REDDIT__", "name": "Reddit OAuth" } }
+    },
+    {
+      "id": "medium",
+      "name": "Publish Medium",
+      "type": "n8n-nodes-base.medium",
+      "typeVersion": 2,
+      "position": [2520, 80],
+      "parameters": {
+        "operation": "create",
+        "title": "={{'Descubre: ' + ($node['build_links'].json.title||'Producto Amazon')}}",
+        "contentFormat": "html",
+        "content": "={{'<p>'+ ($node['parse_copy'].json.copy.text_aida||'') + '</p><p><strong>Compra:</strong> <a href=\"' + $node['parse_copy'].json.url + '\">enlace</a></p>'}}",
+        "publishStatus": "public"
+      },
+      "credentials": { "mediumApi": { "id": "__CRED_MEDIUM__", "name": "Medium API" } }
+    },
+
+    /* ===== Optional publishers (enable with tokens) ===== */
+
+    {
+      "id": "youtube",
+      "name": "Publish YouTube [Optional]",
+      "type": "n8n-nodes-base.youtube",
+      "typeVersion": 2,
+      "position": [2720, -320],
+      "parameters": {
+        "operation": "uploadVideo",
+        "title": "={{$node['build_links'].json.title}}",
+        "description": "={{$node['parse_copy'].json.copy.text_aida + '\\n\\n' + $node['parse_copy'].json.url}}",
+        "privacyStatus": "public",
+        "binaryProperty": "video"
+      },
+      "disabled": true,
+      "credentials": { "youTubeOAuth2Api": { "id": "__CRED_YT__", "name": "YouTube OAuth" } }
+    },
+    {
+      "id": "xpost",
+      "name": "Publish X [Optional]",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2720, -160],
+      "parameters": {
+        "url": "https://api.twitter.com/2/tweets",
+        "method": "POST",
+        "jsonParameters": true,
+        "sendHeaders": true,
+        "headerParametersJson": "={\"Authorization\":\"Bearer {{$env.TWITTER_BEARER}}\",\"Content-Type\":\"application/json\"}",
+        "bodyParametersJson": "={\"text\":\"{{$node['parse_copy'].json.copy.titles?.[0] || ''}}\\n{{$node['parse_copy'].json.url}}\"}"
+      },
+      "disabled": true
+    },
+    {
+      "id": "fbpage",
+      "name": "Publish Facebook Page [Optional]",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2720, 0],
+      "parameters": {
+        "url": "https://graph.facebook.com/v19.0/{{$env.FB_PAGE_ID}}/photos",
+        "method": "POST",
+        "sendQuery": true,
+        "qs": {
+          "caption": "={{$node['parse_copy'].json.copy.text_aida + '\\n\\n' + $node['parse_copy'].json.url}}",
+          "url": "={{$node['select_image'].json.image_url}}",
+          "access_token": "={{$env.FB_PAGE_TOKEN}}"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "id": "instagram",
+      "name": "Publish Instagram [Optional]",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2720, 160],
+      "parameters": {
+        "url": "https://graph.facebook.com/v19.0/{{$env.IG_BUSINESS_ID}}/media",
+        "method": "POST",
+        "sendQuery": true,
+        "qs": {
+          "image_url": "={{$node['select_image'].json.image_url}}",
+          "caption": "={{$node['parse_copy'].json.copy.text_aida + '\\n\\n' + $node['parse_copy'].json.url}}",
+          "access_token": "={{$env.FB_PAGE_TOKEN}}"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "id": "pinterest",
+      "name": "Publish Pinterest [Optional]",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2720, 320],
+      "parameters": {
+        "url": "https://api.pinterest.com/v5/pins",
+        "method": "POST",
+        "jsonParameters": true,
+        "sendHeaders": true,
+        "headerParametersJson": "={\"Authorization\":\"Bearer {{$env.PINTEREST_TOKEN}}\",\"Content-Type\":\"application/json\"}",
+        "bodyParametersJson": "={\"title\":\"{{$node['build_links'].json.title}}\",\"link\":\"{{$node['parse_copy'].json.url}}\",\"board_id\":\"{{$env.PINTEREST_BOARD_ID}}\",\"media_source\":{\"source_type\":\"image_url\",\"url\":\"{{$node['select_image'].json.image_url}}\"}}"
+      },
+      "disabled": true
+    },
+    {
+      "id": "threads",
+      "name": "Publish Threads [Optional]",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2720, 480],
+      "parameters": {
+        "url": "https://graph.threads.net/v1.0/{{$env.THREADS_ACCOUNT_ID}}/posts",
+        "method": "POST",
+        "sendQuery": true,
+        "qs": {
+          "text": "={{$node['parse_copy'].json.copy.titles?.[0] + '\\n' + $node['parse_copy'].json.url}}",
+          "access_token": "={{$env.THREADS_TOKEN}}"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "id": "tiktok",
+      "name": "Publish TikTok [Optional]",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2720, 640],
+      "parameters": {
+        "url": "https://open.tiktokapis.com/v2/post/publish/video/",
+        "method": "POST",
+        "jsonParameters": true,
+        "sendHeaders": true,
+        "headerParametersJson": "={\"Authorization\":\"Bearer {{$env.TIKTOK_TOKEN}}\"}",
+        "bodyParametersJson": "={\"caption\":\"{{$node['parse_copy'].json.copy.titles?.[0] || ''}}\",\"video_url\":\"{{$json.video_url || ''}}\"}"
+      },
+      "disabled": true
+    },
+
+    /* ===== Logging & Marking ===== */
+
+    {
+      "id": "airtable_log",
+      "name": "Log to Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 3,
+      "position": [2940, -80],
+      "parameters": {
+        "operation": "create",
+        "baseId": "={{$env.AIRTABLE_BASE_ID}}",
+        "tableId": "={{$env.AIRTABLE_TABLE_NAME}}",
+        "fields": {
+          "Product": "={{$node['build_links'].json.title}}",
+          "ASIN": "={{$node['build_links'].json.asin}}",
+          "Country": "={{$node['parse_copy'].json.country}}",
+          "URL": "={{$node['parse_copy'].json.url}}",
+          "Network": "={{'TG/RD/MD' }}",
+          "Timestamp": "={{$now}}"
+        }
+      },
+      "credentials": { "airtableApi": { "id": "__CRED_AIRTABLE__", "name": "Airtable API" } }
+    },
+    {
+      "id": "mark_sheet",
+      "name": "Mark as Posted (Sheets)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [3140, -80],
+      "parameters": {
+        "operation": "update",
+        "sheetId": "1dOorilH3_wTs39Fdo01OHppmHa-tO27DYQDZZ0sXdSY",
+        "range": "Products!A:G",
+        "keyRow": 1,
+        "options": { "valueInputMode": "RAW", "updateAllMatches": true, "rawData": true }
+      },
+      "credentials": { "googleApi": { "id": "__CRED_GOOGLE__", "name": "Google API" } }
+    }
+  ],
+  "connections": {
+    "Start (Cron @hourly)": { "main": [[{ "node": "Read Products (Google Sheets)", "type": "main", "index": 0 }]] },
+    "Read Products (Google Sheets)": { "main": [[{ "node": "Filter Not Posted", "type": "main", "index": 0 }]] },
+    "Filter Not Posted": {
+      "main": [
+        [{ "node": "IF Need Enrichment", "type": "main", "index": 0 }]
+      ]
+    },
+    "IF Need Enrichment": {
+      "main": [
+        [{ "node": "Enrich Missing (Apify Amazon, optional)", "type": "main", "index": 0 }],
+        [{ "node": "Build Localized Links (10 Countries)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Enrich Missing (Apify Amazon, optional)": { "main": [[{ "node": "Merge Enrichment", "type": "main", "index": 0 }]] },
+    "Merge Enrichment": { "main": [[{ "node": "Build Localized Links (10 Countries)", "type": "main", "index": 0 }]] },
+    "Build Localized Links (10 Countries)": { "main": [[{ "node": "Explode by Country", "type": "main", "index": 0 }]] },
+    "Explode by Country": { "main": [[{ "node": "Generate Copy per Country (OpenRouter)", "type": "main", "index": 0 }]] },
+    "Generate Copy per Country (OpenRouter)": { "main": [[{ "node": "Parse Copy JSON", "type": "main", "index": 0 }]] },
+    "Parse Copy JSON": { "main": [[{ "node": "Find Image (Pexels)", "type": "main", "index": 0 }]] },
+    "Find Image (Pexels)": { "main": [[{ "node": "Select Image URL", "type": "main", "index": 0 }]] },
+    "Select Image URL": {
+      "main": [[
+        { "node": "TTS (VoiceRSS)", "type": "main", "index": 0 }
+      ]]
+    },
+    "TTS (VoiceRSS)": {
+      "main": [[
+        { "node": "Assemble Short Video (Shotstack) [Optional]", "type": "main", "index": 0 },
+        { "node": "Publish Telegram", "type": "main", "index": 0 }
+      ]]
+    },
+    "Publish Telegram": { "main": [[{ "node": "Publish Reddit", "type": "main", "index": 0 }]] },
+    "Publish Reddit": { "main": [[{ "node": "Publish Medium", "type": "main", "index": 0 }]] },
+    "Publish Medium": { "main": [[{ "node": "Log to Airtable", "type": "main", "index": 0 }]] },
+    "Log to Airtable": { "main": [[{ "node": "Mark as Posted (Sheets)", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}
